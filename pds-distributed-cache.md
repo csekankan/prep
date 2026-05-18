@@ -272,6 +272,221 @@ Pre-caching + variable traffic:
 | **Pre-cache Builders** | Multiple consumers read hotel IDs, fetch metadata from DB, write to Couchbase |
 | **Couchbase Clusters** | Separate cluster per DC (4 total) to avoid cross-DC latency |
 
+### Complete Architecture Diagram: How the Pre-Cache Gets Populated
+
+```
+═══════════════════════════════════════════════════════════════════════════════════
+                        PDS NEW ARCHITECTURE — FULL PICTURE
+═══════════════════════════════════════════════════════════════════════════════════
+
+  EDGE CLIENTS (1M+ req/sec)
+  ─────────────────────────
+  ┌────────┐ ┌────────┐ ┌──────────────┐
+  │  Web   │ │ Mobile │ │  Affiliate   │
+  │ Users  │ │  App   │ │  APIs        │
+  └───┬────┘ └───┬────┘ └──────┬───────┘
+      │          │             │
+      └──────────┼─────────────┘
+                 │
+                 ▼
+  ┌──────────────────────────────────┐
+  │       GLOBAL LOAD BALANCER       │
+  │        (GeoDNS routing)          │
+  └──────┬──────┬──────┬──────┬──────┘
+         │      │      │      │
+         ▼      ▼      ▼      ▼
+═════════════════════════════════════════════════════════════════════════════
+  DATA CENTER 1            DATA CENTER 2         DATA CENTER 3 & 4
+  (e.g. Singapore)         (e.g. Hong Kong)      (same pattern)
+═════════════════════════════════════════════════════════════════════════════
+
+  ┌─ SERVING PATH (hot, real-time, every request) ─────────────────────┐
+  │                                                                     │
+  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                           │
+  │  │PDS Inst 1│ │PDS Inst 2│ │PDS Inst N│  (hundreds of instances)  │
+  │  │          │ │          │ │          │                            │
+  │  │ 1. Get   │ │ 1. Get   │ │ 1. Get   │                           │
+  │  │  metadata│ │  metadata│ │  metadata│                            │
+  │  │ 2. Calc  │ │ 2. Calc  │ │ 2. Calc  │                           │
+  │  │  price   │ │  price   │ │  price   │                           │
+  │  └────┬─────┘ └────┬─────┘ └────┬─────┘                           │
+  │       │            │            │                                   │
+  │       │     Couchbase SDK       │                                   │
+  │       │     (KV get by          │                                   │
+  │       │      hotel_id)          │                                   │
+  │       └────────────┼────────────┘                                   │
+  │                    │                                                │
+  │                    ▼                                                │
+  │  ┌──────────────────────────────────────────────────────────┐      │
+  │  │              COUCHBASE CLUSTER (local to DC)              │      │
+  │  │                                                          │      │
+  │  │  ┌──────────┐    ┌──────────┐    ┌──────────┐           │      │
+  │  │  │  Node A  │    │  Node B  │    │  Node C  │           │      │
+  │  │  │ vB 0-341 │    │vB 342-682│    │vB 683-1023│          │      │
+  │  │  │ (active) │    │ (active) │    │ (active) │           │      │
+  │  │  │ +replicas│    │ +replicas│    │ +replicas│           │      │
+  │  │  └──────────┘    └──────────┘    └──────────┘           │      │
+  │  │                                                          │      │
+  │  │  Total: ~5GB metadata for all hotels                     │      │
+  │  │  Access: O(1) key-value lookup by hotel_id               │      │
+  │  │  Latency: ~5-15ms per read (P99)                         │      │
+  │  └──────────────────────────────────────────────────────────┘      │
+  │                    ▲                                                │
+  └────────────────────│────────────────────────────────────────────────┘
+                       │
+                       │  Couchbase bulk upsert
+                       │  (write enriched metadata)
+                       │
+  ┌─ CACHE POPULATION PATH (background, every 20 min) ────────────────┐
+  │                    │                                                │
+  │  ┌─────────────────┴──────────────────────────────────────────┐    │
+  │  │              PRE-CACHE BUILDERS (consumers)                 │    │
+  │  │                                                             │    │
+  │  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐  │    │
+  │  │  │ Builder 1 │ │ Builder 2 │ │ Builder 3 │ │ Builder N │  │    │
+  │  │  │           │ │           │ │           │ │           │  │    │
+  │  │  │ For each  │ │ For each  │ │ For each  │ │ For each  │  │    │
+  │  │  │ hotel_id: │ │ hotel_id: │ │ hotel_id: │ │ hotel_id: │  │    │
+  │  │  │ 1.Read DB │ │ 1.Read DB │ │ 1.Read DB │ │ 1.Read DB │  │    │
+  │  │  │ 2.Compute │ │ 2.Compute │ │ 2.Compute │ │ 2.Compute │  │    │
+  │  │  │  metadata │ │  metadata │ │  metadata │ │  metadata │  │    │
+  │  │  │ 3.Write   │ │ 3.Write   │ │ 3.Write   │ │ 3.Write   │  │    │
+  │  │  │  to CB    │ │  to CB    │ │  to CB    │ │  to CB    │  │    │
+  │  │  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘  │    │
+  │  │        │             │             │             │          │    │
+  │  └────────┼─────────────┼─────────────┼─────────────┼──────────┘    │
+  │           │             │             │             │               │
+  │           │     Kafka consumer group                │               │
+  │           │     ("precache-builders")               │               │
+  │           └─────────────┼───────────────────────────┘               │
+  │                         │                                           │
+  │                         │  poll messages (hotel_ids)                │
+  │                         │                                           │
+  │  ┌──────────────────────▼──────────────────────────────────┐       │
+  │  │                 APACHE KAFKA CLUSTER                     │       │
+  │  │                                                          │       │
+  │  │  Topic: "hotel-sync"                                     │       │
+  │  │  ┌───────────┐ ┌───────────┐ ┌───────────┐              │       │
+  │  │  │Partition 0│ │Partition 1│ │Partition P│              │       │
+  │  │  │[H1,H4,H7]│ │[H2,H5,H8]│ │[H3,H6,H9]│  ...        │       │
+  │  │  └───────────┘ └───────────┘ └───────────┘              │       │
+  │  │                                                          │       │
+  │  │  Provides: ordering, durability, replayability,          │       │
+  │  │            rate control, consumer group coordination     │       │
+  │  └──────────────────────▲──────────────────────────────────┘       │
+  │                         │                                           │
+  │                         │  publish hotel_ids                        │
+  │                         │                                           │
+  │  ┌──────────────────────┴──────────────────────────────────┐       │
+  │  │              SCHEDULED PRODUCER                          │       │
+  │  │                                                          │       │
+  │  │  Runs every 20 minutes (cron-like)                       │       │
+  │  │  1. Query: SELECT ALL hotel_ids FROM hotels              │       │
+  │  │  2. Emit each hotel_id into Kafka topic                  │       │
+  │  │  3. ~5M messages per cycle                               │       │
+  │  └──────────────────────┬──────────────────────────────────┘       │
+  │                         │                                           │
+  └─────────────────────────│───────────────────────────────────────────┘
+                            │
+                            │  query hotel_ids + metadata
+                            ▼
+  ┌────────────────────────────────────────────────────────────────────┐
+  │                    SOURCE DATABASE (SQL Server)                     │
+  │                                                                    │
+  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐             │
+  │  │hotel_rates│ │hotel_taxes│ │promotions│ │rate_plans│  + more    │
+  │  │          │ │          │ │          │ │          │             │
+  │  │base room │ │tax rules │ │discounts │ │packages  │             │
+  │  │prices    │ │per region│ │deals     │ │configs   │             │
+  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘             │
+  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                          │
+  │  │blackout  │ │commission│ │surcharges│                          │
+  │  │dates     │ │rates     │ │extra fees│                          │
+  │  └──────────┘ └──────────┘ └──────────┘                          │
+  │                                                                    │
+  │  Builders JOIN across these tables to compute                      │
+  │  the final metadata document for each hotel                        │
+  └────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+                      REQUEST FLOW (numbered sequence)
+═══════════════════════════════════════════════════════════════════════════════════
+
+  SERVING PATH (every request, real-time):
+
+    ① User/Affiliate requests price for Hotel H_12345
+    ② GeoDNS routes to nearest DC (e.g., DC-1 Singapore)
+    ③ PDS Instance receives request
+    ④ PDS calls Couchbase: GET key="H_12345"
+    ⑤ Couchbase returns metadata document (~5KB, ~5-15ms)
+    ⑥ PDS runs price calculation logic on the metadata
+    ⑦ PDS returns computed price to caller
+
+
+  CACHE POPULATION PATH (background, every 20 minutes):
+
+    ❶ Scheduled Producer triggers (cron: every 20 min)
+    ❷ Producer queries DB for all hotel_ids (~5M)
+    ❸ Producer publishes hotel_ids into Kafka topic "hotel-sync"
+    ❹ Kafka distributes messages across partitions
+    ❺ Pre-cache Builders (consumer group) each poll a subset of partitions
+    ❻ For each hotel_id, Builder queries source DB:
+       - JOINs across hotel_rates, hotel_taxes, promotions, rate_plans, etc.
+       - Computes the final metadata document
+    ❼ Builder writes (upserts) the metadata document into Couchbase
+       - Key: hotel_id
+       - Value: complete metadata JSON
+    ❽ Repeat ❺-❼ until all ~5M hotels are synced (~15 min total)
+    ❾ Builders idle until next cycle at ❶
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+                      MULTI-DC VIEW (all 4 data centers)
+═══════════════════════════════════════════════════════════════════════════════════
+
+                         ┌─────────────────────┐
+                         │   SOURCE DATABASE    │
+                         │   (central / primary │
+                         │    + read replicas)  │
+                         └──────────┬──────────┘
+                                    │
+                 ┌──────────────────┼──────────────────┐
+                 │                  │                   │
+      ┌──────────▼────────┐ ┌──────▼──────────┐ ┌─────▼───────────┐
+      │  DC-1 Singapore   │ │  DC-2 Hong Kong │ │  DC-3 US-East   │ ...DC-4
+      │                   │ │                  │ │                  │
+      │ ┌───────────────┐ │ │ ┌──────────────┐ │ │ ┌──────────────┐ │
+      │ │Sched. Producer│ │ │ │Sched.Producer│ │ │ │Sched.Producer│ │
+      │ └───────┬───────┘ │ │ └──────┬───────┘ │ │ └──────┬───────┘ │
+      │         ▼         │ │        ▼         │ │        ▼         │
+      │ ┌───────────────┐ │ │ ┌──────────────┐ │ │ ┌──────────────┐ │
+      │ │  Kafka (local)│ │ │ │ Kafka (local)│ │ │ │ Kafka (local)│ │
+      │ └───────┬───────┘ │ │ └──────┬───────┘ │ │ └──────┬───────┘ │
+      │         ▼         │ │        ▼         │ │        ▼         │
+      │ ┌───────────────┐ │ │ ┌──────────────┐ │ │ ┌──────────────┐ │
+      │ │Pre-cache      │ │ │ │Pre-cache     │ │ │ │Pre-cache     │ │
+      │ │Builders       │ │ │ │Builders      │ │ │ │Builders      │ │
+      │ └───────┬───────┘ │ │ └──────┬───────┘ │ │ └──────┬───────┘ │
+      │         ▼         │ │        ▼         │ │        ▼         │
+      │ ┌───────────────┐ │ │ ┌──────────────┐ │ │ ┌──────────────┐ │
+      │ │Couchbase      │ │ │ │Couchbase     │ │ │ │Couchbase     │ │
+      │ │Cluster (local)│ │ │ │Cluster(local)│ │ │ │Cluster(local)│ │
+      │ └───────▲───────┘ │ │ └──────▲───────┘ │ │ └──────▲───────┘ │
+      │         │         │ │        │         │ │        │         │
+      │ ┌───────┴───────┐ │ │ ┌──────┴───────┐ │ │ ┌──────┴───────┐ │
+      │ │PDS Instances  │ │ │ │PDS Instances │ │ │ │PDS Instances │ │
+      │ │(serve traffic)│ │ │ │(serve traffic│ │ │ │(serve traffic│ │
+      │ └───────────────┘ │ │ └──────────────┘ │ │ └──────────────┘ │
+      └───────────────────┘ └──────────────────┘ └──────────────────┘
+
+  Each DC independently:
+  - Runs its own Producer → Kafka → Builders → Couchbase pipeline
+  - Reads from the same source DB (or a local read replica)
+  - Maintains its own complete copy of all hotel metadata
+  - Serves its regional traffic with no cross-DC dependencies
+```
+
 ### Full Sync Strategy
 
 Entire dataset refreshed every 20 minutes. No delta/diff tracking.
