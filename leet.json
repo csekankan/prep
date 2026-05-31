@@ -1,0 +1,3490 @@
+[
+  {
+    "ID": "427",
+    "Title": "Construct Quad Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/construct-quad-tree/",
+    "Timestamp": "May 28",
+    "Submissions": "1"
+  },
+  {
+    "ID": "329",
+    "Title": "Longest Increasing Path in a Matrix",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/longest-increasing-path-in-a-matrix/",
+    "Timestamp": "May 27",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1463",
+    "Title": "Cherry Pickup II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/cherry-pickup-ii/",
+    "Timestamp": "May 27",
+    "Submissions": "1"
+  },
+  {
+    "ID": "741",
+    "Title": "Cherry Pickup",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/cherry-pickup/",
+    "Timestamp": "May 27",
+    "Submissions": "1"
+  },
+  {
+    "ID": "962",
+    "Title": "Maximum Width Ramp",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-width-ramp/",
+    "Timestamp": "May 27",
+    "Submissions": "15"
+  },
+  {
+    "ID": "907",
+    "Title": "Sum of Subarray Minimums",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/sum-of-subarray-minimums/",
+    "Timestamp": "May 27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1340",
+    "Title": "Jump Game V",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/jump-game-v/",
+    "Timestamp": "May 26",
+    "Submissions": "5"
+  },
+  {
+    "ID": "895",
+    "Title": "Maximum Frequency Stack",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-frequency-stack/",
+    "Timestamp": "May 25",
+    "Submissions": "6"
+  },
+  {
+    "ID": "857",
+    "Title": "Minimum Cost to Hire K Workers",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-cost-to-hire-k-workers/",
+    "Timestamp": "May 25",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1425",
+    "Title": "Constrained Subsequence Sum",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/constrained-subsequence-sum/",
+    "Timestamp": "May 23",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2657",
+    "Title": "Find the Prefix Common Array of Two Arrays",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-prefix-common-array-of-two-arrays/",
+    "Timestamp": "May 23",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3043",
+    "Title": "Find the Length of the Longest Common Prefix",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-length-of-the-longest-common-prefix/",
+    "Timestamp": "May 23",
+    "Submissions": "12"
+  },
+  {
+    "ID": "652",
+    "Title": "Find Duplicate Subtrees",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-duplicate-subtrees/",
+    "Timestamp": "May 21",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1373",
+    "Title": "Maximum Sum BST in Binary Tree",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-sum-bst-in-binary-tree/",
+    "Timestamp": "May 21",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1944",
+    "Title": "Number of Visible People in a Queue",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/number-of-visible-people-in-a-queue/",
+    "Timestamp": "May 19",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1345",
+    "Title": "Jump Game IV",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/jump-game-iv/",
+    "Timestamp": "May 18",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1665",
+    "Title": "Minimum Initial Energy to Finish Tasks",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-initial-energy-to-finish-tasks/",
+    "Timestamp": "May 12",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2770",
+    "Title": "Maximum Number of Jumps to Reach the Last Index",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-number-of-jumps-to-reach-the-last-index/",
+    "Timestamp": "May 11",
+    "Submissions": "15"
+  },
+  {
+    "ID": "3660",
+    "Title": "Jump Game IX",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/jump-game-ix/",
+    "Timestamp": "May 10",
+    "Submissions": "5"
+  },
+  {
+    "ID": "3629",
+    "Title": "Minimum Jumps to Reach End via Prime Teleportation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-jumps-to-reach-end-via-prime-teleportation/",
+    "Timestamp": "May 10",
+    "Submissions": "6"
+  },
+  {
+    "ID": "396",
+    "Title": "Rotate Function",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rotate-function/",
+    "Timestamp": "May 5",
+    "Submissions": "5"
+  },
+  {
+    "ID": "788",
+    "Title": "Rotated Digits",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rotated-digits/",
+    "Timestamp": "May 3",
+    "Submissions": "8"
+  },
+  {
+    "ID": "3742",
+    "Title": "Maximum Path Score in a Grid",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-path-score-in-a-grid/",
+    "Timestamp": "May 1",
+    "Submissions": "13"
+  },
+  {
+    "ID": "1391",
+    "Title": "Check if There is a Valid Path in a Grid",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/check-if-there-is-a-valid-path-in-a-grid/",
+    "Timestamp": "Apr 27",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2121",
+    "Title": "Intervals Between Identical Elements",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/intervals-between-identical-elements/",
+    "Timestamp": "Apr 25",
+    "Submissions": "3"
+  },
+  {
+    "ID": "523",
+    "Title": "Continuous Subarray Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/continuous-subarray-sum/",
+    "Timestamp": "Apr 20",
+    "Submissions": "4"
+  },
+  {
+    "ID": "525",
+    "Title": "Contiguous Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/contiguous-array/",
+    "Timestamp": "Apr 20",
+    "Submissions": "8"
+  },
+  {
+    "ID": "3761",
+    "Title": "Minimum Absolute Distance Between Mirror Pairs",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-absolute-distance-between-mirror-pairs/",
+    "Timestamp": "Apr 18",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3488",
+    "Title": "Closest Equal Element Queries",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/closest-equal-element-queries/",
+    "Timestamp": "Apr 17",
+    "Submissions": "1"
+  },
+  {
+    "ID": "334",
+    "Title": "Increasing Triplet Subsequence",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/increasing-triplet-subsequence/",
+    "Timestamp": "Apr 16",
+    "Submissions": "4"
+  },
+  {
+    "ID": "41",
+    "Title": "First Missing Positive",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/first-missing-positive/",
+    "Timestamp": "Apr 16",
+    "Submissions": "14"
+  },
+  {
+    "ID": "2751",
+    "Title": "Robot Collisions",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/robot-collisions/",
+    "Timestamp": "Apr 2",
+    "Submissions": "8"
+  },
+  {
+    "ID": "2573",
+    "Title": "Find the String with LCP",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-the-string-with-lcp/",
+    "Timestamp": "Mar 30",
+    "Submissions": "10"
+  },
+  {
+    "ID": "3548",
+    "Title": "Equal Sum Grid Partition II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/equal-sum-grid-partition-ii/",
+    "Timestamp": "Mar 27",
+    "Submissions": "6"
+  },
+  {
+    "ID": "3546",
+    "Title": "Equal Sum Grid Partition I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/equal-sum-grid-partition-i/",
+    "Timestamp": "Mar 26",
+    "Submissions": "3"
+  },
+  {
+    "ID": "152",
+    "Title": "Maximum Product Subarray",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-product-subarray/",
+    "Timestamp": "Mar 25",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2906",
+    "Title": "Construct Product Matrix",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/construct-product-matrix/",
+    "Timestamp": "Mar 24",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1594",
+    "Title": "Maximum Non Negative Product in a Matrix",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-non-negative-product-in-a-matrix/",
+    "Timestamp": "Mar 23",
+    "Submissions": "5"
+  },
+  {
+    "ID": "3567",
+    "Title": "Minimum Absolute Difference in Sliding Submatrix",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-absolute-difference-in-sliding-submatrix/",
+    "Timestamp": "Mar 22",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1878",
+    "Title": "Get Biggest Three Rhombus Sums in a Grid",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/get-biggest-three-rhombus-sums-in-a-grid/",
+    "Timestamp": "Mar 21",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3070",
+    "Title": "Count Submatrices with Top-Left Element and Sum Less Than k",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-submatrices-with-top-left-element-and-sum-less-than-k/",
+    "Timestamp": "Mar 20",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1622",
+    "Title": "Fancy Sequence",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/fancy-sequence/",
+    "Timestamp": "Mar 16",
+    "Submissions": "6"
+  },
+  {
+    "ID": "297",
+    "Title": "Serialize and Deserialize Binary Tree",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/serialize-and-deserialize-binary-tree/",
+    "Timestamp": "Mar 2",
+    "Submissions": "11"
+  },
+  {
+    "ID": "761",
+    "Title": "Special Binary String",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/special-binary-string/",
+    "Timestamp": "Feb 26",
+    "Submissions": "4"
+  },
+  {
+    "ID": "3829",
+    "Title": "Design Ride Sharing System",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-ride-sharing-system/",
+    "Timestamp": "Feb 23",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1461",
+    "Title": "Check If a String Contains All Binary Codes of Size K",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/check-if-a-string-contains-all-binary-codes-of-size-k/",
+    "Timestamp": "Feb 23",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2976",
+    "Title": "Minimum Cost to Convert String I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-cost-to-convert-string-i/",
+    "Timestamp": "Jan 30",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3453",
+    "Title": "Separate Squares I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/separate-squares-i/",
+    "Timestamp": "Jan 15",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1339",
+    "Title": "Maximum Product of Splitted Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-product-of-splitted-binary-tree/",
+    "Timestamp": "Jan 13",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1458",
+    "Title": "Max Dot Product of Two Subsequences",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/max-dot-product-of-two-subsequences/",
+    "Timestamp": "Jan 11",
+    "Submissions": "2"
+  },
+  {
+    "ID": "865",
+    "Title": "Smallest Subtree with all the Deepest Nodes",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/smallest-subtree-with-all-the-deepest-nodes/",
+    "Timestamp": "Jan 11",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1161",
+    "Title": "Maximum Level Sum of a Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-level-sum-of-a-binary-tree/",
+    "Timestamp": "Jan 6",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1975",
+    "Title": "Maximum Matrix Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-matrix-sum/",
+    "Timestamp": "Jan 6",
+    "Submissions": "7"
+  },
+  {
+    "ID": "1411",
+    "Title": "Number of Ways to Paint N × 3 Grid",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/number-of-ways-to-paint-n-3-grid/",
+    "Timestamp": "Jan 4",
+    "Submissions": "3"
+  },
+  {
+    "ID": "56",
+    "Title": "Merge Intervals",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/merge-intervals/",
+    "Timestamp": "Jan 2",
+    "Submissions": "4"
+  },
+  {
+    "ID": "961",
+    "Title": "N-Repeated Element in Size 2N Array",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/n-repeated-element-in-size-2n-array/",
+    "Timestamp": "Jan 2",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2141",
+    "Title": "Maximum Running Time of N Computers",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-running-time-of-n-computers/",
+    "Timestamp": "2025.12.04",
+    "Submissions": "5"
+  },
+  {
+    "ID": "474",
+    "Title": "Ones and Zeroes",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/ones-and-zeroes/",
+    "Timestamp": "2025.11.11",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1987",
+    "Title": "Number of Unique Good Subsequences",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/number-of-unique-good-subsequences/",
+    "Timestamp": "2025.11.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "987",
+    "Title": "Vertical Order Traversal of a Binary Tree",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/vertical-order-traversal-of-a-binary-tree/",
+    "Timestamp": "2025.11.02",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1703",
+    "Title": "Minimum Adjacent Swaps for K Consecutive Ones",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-adjacent-swaps-for-k-consecutive-ones/",
+    "Timestamp": "2025.10.30",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2014",
+    "Title": "Longest Subsequence Repeated k Times",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/longest-subsequence-repeated-k-times/",
+    "Timestamp": "2025.10.25",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3350",
+    "Title": "Adjacent Increasing Subarrays Detection II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/adjacent-increasing-subarrays-detection-ii/",
+    "Timestamp": "2025.10.16",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1931",
+    "Title": "Painting a Grid With Three Different Colors",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/painting-a-grid-with-three-different-colors/",
+    "Timestamp": "2025.10.06",
+    "Submissions": "7"
+  },
+  {
+    "ID": "995",
+    "Title": "Minimum Number of K Consecutive Bit Flips",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-number-of-k-consecutive-bit-flips/",
+    "Timestamp": "2025.09.28",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3429",
+    "Title": "Paint House IV",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/paint-house-iv/",
+    "Timestamp": "2025.09.22",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1912",
+    "Title": "Design Movie Rental System",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/design-movie-rental-system/",
+    "Timestamp": "2025.09.21",
+    "Submissions": "2"
+  },
+  {
+    "ID": "768",
+    "Title": "Max Chunks To Make Sorted II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/max-chunks-to-make-sorted-ii/",
+    "Timestamp": "2025.09.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1187",
+    "Title": "Make Array Strictly Increasing",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/make-array-strictly-increasing/",
+    "Timestamp": "2025.09.07",
+    "Submissions": "9"
+  },
+  {
+    "ID": "1601",
+    "Title": "Maximum Number of Achievable Transfer Requests",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-number-of-achievable-transfer-requests/",
+    "Timestamp": "2025.08.28",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1493",
+    "Title": "Longest Subarray of 1's After Deleting One Element",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-subarray-of-1s-after-deleting-one-element/",
+    "Timestamp": "2025.08.24",
+    "Submissions": "2"
+  },
+  {
+    "ID": "899",
+    "Title": "Orderly Queue",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/orderly-queue/",
+    "Timestamp": "2025.08.18",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1031",
+    "Title": "Maximum Sum of Two Non-Overlapping Subarrays",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-sum-of-two-non-overlapping-subarrays/",
+    "Timestamp": "2025.08.11",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2035",
+    "Title": "Partition Array Into Two Arrays to Minimize Sum Difference",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/partition-array-into-two-arrays-to-minimize-sum-difference/",
+    "Timestamp": "2025.08.05",
+    "Submissions": "9"
+  },
+  {
+    "ID": "1755",
+    "Title": "Closest Subsequence Sum",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/closest-subsequence-sum/",
+    "Timestamp": "2025.08.03",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1547",
+    "Title": "Minimum Cost to Cut a Stick",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-cost-to-cut-a-stick/",
+    "Timestamp": "2025.07.31",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1717",
+    "Title": "Maximum Score From Removing Substrings",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-score-from-removing-substrings/",
+    "Timestamp": "2025.07.23",
+    "Submissions": "1"
+  },
+  {
+    "ID": "299",
+    "Title": "Bulls and Cows",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/bulls-and-cows/",
+    "Timestamp": "2025.07.22",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1695",
+    "Title": "Maximum Erasure Value",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-erasure-value/",
+    "Timestamp": "2025.07.22",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2410",
+    "Title": "Maximum Matching of Players With Trainers",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-matching-of-players-with-trainers/",
+    "Timestamp": "2025.07.22",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3202",
+    "Title": "Find the Maximum Length of Valid Subsequence II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-maximum-length-of-valid-subsequence-ii/",
+    "Timestamp": "2025.07.21",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3201",
+    "Title": "Find the Maximum Length of Valid Subsequence I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-maximum-length-of-valid-subsequence-i/",
+    "Timestamp": "2025.07.16",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3439",
+    "Title": "Reschedule Meetings for Maximum Free Time I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/reschedule-meetings-for-maximum-free-time-i/",
+    "Timestamp": "2025.07.10",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3403",
+    "Title": "Find the Lexicographically Largest String From the Box I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-lexicographically-largest-string-from-the-box-i/",
+    "Timestamp": "2025.07.08",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1865",
+    "Title": "Finding Pairs With a Certain Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/finding-pairs-with-a-certain-sum/",
+    "Timestamp": "2025.07.08",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1353",
+    "Title": "Maximum Number of Events That Can Be Attended",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-number-of-events-that-can-be-attended/",
+    "Timestamp": "2025.07.08",
+    "Submissions": "6"
+  },
+  {
+    "ID": "3335",
+    "Title": "Total Characters in String After Transformations I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/total-characters-in-string-after-transformations-i/",
+    "Timestamp": "2025.07.03",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1838",
+    "Title": "Frequency of the Most Frequent Element",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/frequency-of-the-most-frequent-element/",
+    "Timestamp": "2025.07.02",
+    "Submissions": "10"
+  },
+  {
+    "ID": "2616",
+    "Title": "Minimize the Maximum Difference of Pairs",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimize-the-maximum-difference-of-pairs/",
+    "Timestamp": "2025.06.30",
+    "Submissions": "10"
+  },
+  {
+    "ID": "1498",
+    "Title": "Number of Subsequences That Satisfy the Given Sum Condition",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/number-of-subsequences-that-satisfy-the-given-sum-condition/",
+    "Timestamp": "2025.06.30",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2311",
+    "Title": "Longest Binary Subsequence Less Than or Equal to K",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-binary-subsequence-less-than-or-equal-to-k/",
+    "Timestamp": "2025.06.26",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2040",
+    "Title": "Kth Smallest Product of Two Sorted Arrays",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/kth-smallest-product-of-two-sorted-arrays/",
+    "Timestamp": "2025.06.25",
+    "Submissions": "9"
+  },
+  {
+    "ID": "1423",
+    "Title": "Maximum Points You Can Obtain from Cards",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-points-you-can-obtain-from-cards/",
+    "Timestamp": "2025.06.25",
+    "Submissions": "6"
+  },
+  {
+    "ID": "673",
+    "Title": "Number of Longest Increasing Subsequence",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/number-of-longest-increasing-subsequence/",
+    "Timestamp": "2025.06.23",
+    "Submissions": "13"
+  },
+  {
+    "ID": "2966",
+    "Title": "Divide Array Into Arrays With Max Difference",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/divide-array-into-arrays-with-max-difference/",
+    "Timestamp": "2025.06.19",
+    "Submissions": "5"
+  },
+  {
+    "ID": "689",
+    "Title": "Maximum Sum of 3 Non-Overlapping Subarrays",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-sum-of-3-non-overlapping-subarrays/",
+    "Timestamp": "2025.06.19",
+    "Submissions": "14"
+  },
+  {
+    "ID": "1948",
+    "Title": "Delete Duplicate Folders in System",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/delete-duplicate-folders-in-system/",
+    "Timestamp": "2025.06.11",
+    "Submissions": "6"
+  },
+  {
+    "ID": "307",
+    "Title": "Range Sum Query - Mutable",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/range-sum-query-mutable/",
+    "Timestamp": "2025.06.08",
+    "Submissions": "5"
+  },
+  {
+    "ID": "234",
+    "Title": "Palindrome Linked List",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/palindrome-linked-list/",
+    "Timestamp": "2025.06.04",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1481",
+    "Title": "Least Number of Unique Integers after K Removals",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/least-number-of-unique-integers-after-k-removals/",
+    "Timestamp": "2025.06.03",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2159",
+    "Title": "Order Two Columns Independently",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/order-two-columns-independently/",
+    "Timestamp": "2025.05.31",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1034",
+    "Title": "Coloring A Border",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/coloring-a-border/",
+    "Timestamp": "2025.05.28",
+    "Submissions": "8"
+  },
+  {
+    "ID": "2512",
+    "Title": "Reward Top K Students",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/reward-top-k-students/",
+    "Timestamp": "2025.05.26",
+    "Submissions": "1"
+  },
+  {
+    "ID": "25",
+    "Title": "Reverse Nodes in k-Group",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/reverse-nodes-in-k-group/",
+    "Timestamp": "2025.05.25",
+    "Submissions": "5"
+  },
+  {
+    "ID": "206",
+    "Title": "Reverse Linked List",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/reverse-linked-list/",
+    "Timestamp": "2025.05.25",
+    "Submissions": "8"
+  },
+  {
+    "ID": "73",
+    "Title": "Set Matrix Zeroes",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/set-matrix-zeroes/",
+    "Timestamp": "2025.05.21",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2571",
+    "Title": "Minimum Operations to Reduce an Integer to 0",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-operations-to-reduce-an-integer-to-0/",
+    "Timestamp": "2025.05.12",
+    "Submissions": "2"
+  },
+  {
+    "ID": "105",
+    "Title": "Construct Binary Tree from Preorder and Inorder Traversal",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/",
+    "Timestamp": "2025.05.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "32",
+    "Title": "Longest Valid Parentheses",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/longest-valid-parentheses/",
+    "Timestamp": "2025.05.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "48",
+    "Title": "Rotate Image",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rotate-image/",
+    "Timestamp": "2025.05.05",
+    "Submissions": "7"
+  },
+  {
+    "ID": "202",
+    "Title": "Happy Number",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/happy-number/",
+    "Timestamp": "2025.04.23",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1522",
+    "Title": "Diameter of N-Ary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/diameter-of-n-ary-tree/",
+    "Timestamp": "2025.04.20",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1186",
+    "Title": "Maximum Subarray Sum with One Deletion",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-subarray-sum-with-one-deletion/",
+    "Timestamp": "2025.04.14",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3461",
+    "Title": "Check If Digits Are Equal in String After Operations I",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/check-if-digits-are-equal-in-string-after-operations-i/",
+    "Timestamp": "2025.04.14",
+    "Submissions": "1"
+  },
+  {
+    "ID": "134",
+    "Title": "Gas Station",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/gas-station/",
+    "Timestamp": "2025.04.14",
+    "Submissions": "7"
+  },
+  {
+    "ID": "116",
+    "Title": "Populating Next Right Pointers in Each Node",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/populating-next-right-pointers-in-each-node/",
+    "Timestamp": "2025.04.13",
+    "Submissions": "8"
+  },
+  {
+    "ID": "373",
+    "Title": "Find K Pairs with Smallest Sums",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-k-pairs-with-smallest-sums/",
+    "Timestamp": "2025.04.12",
+    "Submissions": "3"
+  },
+  {
+    "ID": "140",
+    "Title": "Word Break II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/word-break-ii/",
+    "Timestamp": "2025.04.12",
+    "Submissions": "13"
+  },
+  {
+    "ID": "2055",
+    "Title": "Plates Between Candles",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/plates-between-candles/",
+    "Timestamp": "2025.04.12",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1094",
+    "Title": "Car Pooling",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/car-pooling/",
+    "Timestamp": "2025.04.12",
+    "Submissions": "6"
+  },
+  {
+    "ID": "875",
+    "Title": "Koko Eating Bananas",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/koko-eating-bananas/",
+    "Timestamp": "2025.04.11",
+    "Submissions": "5"
+  },
+  {
+    "ID": "215",
+    "Title": "Kth Largest Element in an Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/kth-largest-element-in-an-array/",
+    "Timestamp": "2025.04.11",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2385",
+    "Title": "Amount of Time for Binary Tree to Be Infected",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/amount-of-time-for-binary-tree-to-be-infected/",
+    "Timestamp": "2025.04.09",
+    "Submissions": "8"
+  },
+  {
+    "ID": "45",
+    "Title": "Jump Game II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/jump-game-ii/",
+    "Timestamp": "2025.04.07",
+    "Submissions": "5"
+  },
+  {
+    "ID": "739",
+    "Title": "Daily Temperatures",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/daily-temperatures/",
+    "Timestamp": "2025.04.07",
+    "Submissions": "1"
+  },
+  {
+    "ID": "460",
+    "Title": "LFU Cache",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/lfu-cache/",
+    "Timestamp": "2025.04.07",
+    "Submissions": "5"
+  },
+  {
+    "ID": "815",
+    "Title": "Bus Routes",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/bus-routes/",
+    "Timestamp": "2025.04.07",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1676",
+    "Title": "Lowest Common Ancestor of a Binary Tree IV",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree-iv/",
+    "Timestamp": "2025.04.06",
+    "Submissions": "2"
+  },
+  {
+    "ID": "55",
+    "Title": "Jump Game",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/jump-game/",
+    "Timestamp": "2025.04.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "138",
+    "Title": "Copy List with Random Pointer",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/copy-list-with-random-pointer/",
+    "Timestamp": "2025.04.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "207",
+    "Title": "Course Schedule",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/course-schedule/",
+    "Timestamp": "2025.04.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "493",
+    "Title": "Reverse Pairs",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/reverse-pairs/",
+    "Timestamp": "2025.04.05",
+    "Submissions": "3"
+  },
+  {
+    "ID": "74",
+    "Title": "Search a 2D Matrix",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/search-a-2d-matrix/",
+    "Timestamp": "2025.04.05",
+    "Submissions": "9"
+  },
+  {
+    "ID": "322",
+    "Title": "Coin Change",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/coin-change/",
+    "Timestamp": "2025.04.04",
+    "Submissions": "6"
+  },
+  {
+    "ID": "7",
+    "Title": "Reverse Integer",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/reverse-integer/",
+    "Timestamp": "2025.04.03",
+    "Submissions": "5"
+  },
+  {
+    "ID": "767",
+    "Title": "Reorganize String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/reorganize-string/",
+    "Timestamp": "2025.04.03",
+    "Submissions": "3"
+  },
+  {
+    "ID": "46",
+    "Title": "Permutations",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/permutations/",
+    "Timestamp": "2025.04.02",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1383",
+    "Title": "Maximum Performance of a Team",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-performance-of-a-team/",
+    "Timestamp": "2025.04.01",
+    "Submissions": "8"
+  },
+  {
+    "ID": "410",
+    "Title": "Split Array Largest Sum",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/split-array-largest-sum/",
+    "Timestamp": "2025.04.01",
+    "Submissions": "6"
+  },
+  {
+    "ID": "3472",
+    "Title": "Longest Palindromic Subsequence After at Most K Operations",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-palindromic-subsequence-after-at-most-k-operations/",
+    "Timestamp": "2025.03.31",
+    "Submissions": "10"
+  },
+  {
+    "ID": "516",
+    "Title": "Longest Palindromic Subsequence",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-palindromic-subsequence/",
+    "Timestamp": "2025.03.31",
+    "Submissions": "3"
+  },
+  {
+    "ID": "3499",
+    "Title": "Maximize Active Section with Trade I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximize-active-section-with-trade-i/",
+    "Timestamp": "2025.03.29",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3498",
+    "Title": "Reverse Degree of a String",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/reverse-degree-of-a-string/",
+    "Timestamp": "2025.03.29",
+    "Submissions": "1"
+  },
+  {
+    "ID": "295",
+    "Title": "Find Median from Data Stream",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-median-from-data-stream/",
+    "Timestamp": "2025.03.29",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1049",
+    "Title": "Last Stone Weight II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/last-stone-weight-ii/",
+    "Timestamp": "2025.03.29",
+    "Submissions": "3"
+  },
+  {
+    "ID": "332",
+    "Title": "Reconstruct Itinerary",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/reconstruct-itinerary/",
+    "Timestamp": "2025.03.28",
+    "Submissions": "1"
+  },
+  {
+    "ID": "42",
+    "Title": "Trapping Rain Water",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/trapping-rain-water/",
+    "Timestamp": "2025.03.28",
+    "Submissions": "1"
+  },
+  {
+    "ID": "921",
+    "Title": "Minimum Add to Make Parentheses Valid",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-add-to-make-parentheses-valid/",
+    "Timestamp": "2025.03.27",
+    "Submissions": "2"
+  },
+  {
+    "ID": "239",
+    "Title": "Sliding Window Maximum",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/sliding-window-maximum/",
+    "Timestamp": "2025.03.27",
+    "Submissions": "13"
+  },
+  {
+    "ID": "1268",
+    "Title": "Search Suggestions System",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/search-suggestions-system/",
+    "Timestamp": "2025.03.27",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2255",
+    "Title": "Count Prefixes of a Given String",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/count-prefixes-of-a-given-string/",
+    "Timestamp": "2025.03.24",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1971",
+    "Title": "Find if Path Exists in Graph",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/find-if-path-exists-in-graph/",
+    "Timestamp": "2025.03.24",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1642",
+    "Title": "Furthest Building You Can Reach",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/furthest-building-you-can-reach/",
+    "Timestamp": "2025.03.24",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2402",
+    "Title": "Meeting Rooms III",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/meeting-rooms-iii/",
+    "Timestamp": "2025.03.24",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1162",
+    "Title": "As Far from Land as Possible",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/as-far-from-land-as-possible/",
+    "Timestamp": "2025.03.13",
+    "Submissions": "2"
+  },
+  {
+    "ID": "61",
+    "Title": "Rotate List",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rotate-list/",
+    "Timestamp": "2025.03.11",
+    "Submissions": "4"
+  },
+  {
+    "ID": "981",
+    "Title": "Time Based Key-Value Store",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/time-based-key-value-store/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "5"
+  },
+  {
+    "ID": "450",
+    "Title": "Delete Node in a BST",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/delete-node-in-a-bst/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "1"
+  },
+  {
+    "ID": "31",
+    "Title": "Next Permutation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/next-permutation/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "13"
+  },
+  {
+    "ID": "146",
+    "Title": "LRU Cache",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/lru-cache/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "16"
+  },
+  {
+    "ID": "355",
+    "Title": "Design Twitter",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-twitter/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "10"
+  },
+  {
+    "ID": "352",
+    "Title": "Data Stream as Disjoint Intervals",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/data-stream-as-disjoint-intervals/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "2"
+  },
+  {
+    "ID": "141",
+    "Title": "Linked List Cycle",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/linked-list-cycle/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1636",
+    "Title": "Sort Array by Increasing Frequency",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/sort-array-by-increasing-frequency/",
+    "Timestamp": "2025.03.10",
+    "Submissions": "1"
+  },
+  {
+    "ID": "662",
+    "Title": "Maximum Width of Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-width-of-binary-tree/",
+    "Timestamp": "2025.03.09",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1606",
+    "Title": "Find Servers That Handled Most Number of Requests",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-servers-that-handled-most-number-of-requests/",
+    "Timestamp": "2025.03.09",
+    "Submissions": "7"
+  },
+  {
+    "ID": "1209",
+    "Title": "Remove All Adjacent Duplicates in String II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/remove-all-adjacent-duplicates-in-string-ii/",
+    "Timestamp": "2025.03.07",
+    "Submissions": "12"
+  },
+  {
+    "ID": "900",
+    "Title": "RLE Iterator",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rle-iterator/",
+    "Timestamp": "2025.03.06",
+    "Submissions": "3"
+  },
+  {
+    "ID": "226",
+    "Title": "Invert Binary Tree",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/invert-binary-tree/",
+    "Timestamp": "2025.03.06",
+    "Submissions": "1"
+  },
+  {
+    "ID": "946",
+    "Title": "Validate Stack Sequences",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/validate-stack-sequences/",
+    "Timestamp": "2025.03.06",
+    "Submissions": "2"
+  },
+  {
+    "ID": "809",
+    "Title": "Expressive Words",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/expressive-words/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "658",
+    "Title": "Find K Closest Elements",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-k-closest-elements/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "6"
+  },
+  {
+    "ID": "103",
+    "Title": "Binary Tree Zigzag Level Order Traversal",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/binary-tree-zigzag-level-order-traversal/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "57",
+    "Title": "Insert Interval",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/insert-interval/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "15"
+  },
+  {
+    "ID": "242",
+    "Title": "Valid Anagram",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/valid-anagram/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "1"
+  },
+  {
+    "ID": "33",
+    "Title": "Search in Rotated Sorted Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/search-in-rotated-sorted-array/",
+    "Timestamp": "2025.03.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "153",
+    "Title": "Find Minimum in Rotated Sorted Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/",
+    "Timestamp": "2025.03.04",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2161",
+    "Title": "Partition Array According to Given Pivot",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/partition-array-according-to-given-pivot/",
+    "Timestamp": "2025.03.03",
+    "Submissions": "8"
+  },
+  {
+    "ID": "873",
+    "Title": "Length of Longest Fibonacci Subsequence",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/length-of-longest-fibonacci-subsequence/",
+    "Timestamp": "2025.02.27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1749",
+    "Title": "Maximum Absolute Sum of Any Subarray",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-absolute-sum-of-any-subarray/",
+    "Timestamp": "2025.02.26",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1524",
+    "Title": "Number of Sub-arrays With Odd Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/number-of-sub-arrays-with-odd-sum/",
+    "Timestamp": "2025.02.25",
+    "Submissions": "9"
+  },
+  {
+    "ID": "382",
+    "Title": "Linked List Random Node",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/linked-list-random-node/",
+    "Timestamp": "2025.02.25",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2467",
+    "Title": "Most Profitable Path in a Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/most-profitable-path-in-a-tree/",
+    "Timestamp": "2025.02.24",
+    "Submissions": "3"
+  },
+  {
+    "ID": "3045",
+    "Title": "Count Prefix and Suffix Pairs II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/count-prefix-and-suffix-pairs-ii/",
+    "Timestamp": "2025.02.23",
+    "Submissions": "12"
+  },
+  {
+    "ID": "1261",
+    "Title": "Find Elements in a Contaminated Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-elements-in-a-contaminated-binary-tree/",
+    "Timestamp": "2025.02.21",
+    "Submissions": "1"
+  },
+  {
+    "ID": "268",
+    "Title": "Missing Number",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/missing-number/",
+    "Timestamp": "2025.02.20",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1980",
+    "Title": "Find Unique Binary String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-unique-binary-string/",
+    "Timestamp": "2025.02.20",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1415",
+    "Title": "The k-th Lexicographical String of All Happy Strings of Length n",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-k-th-lexicographical-string-of-all-happy-strings-of-length-n/",
+    "Timestamp": "2025.02.19",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1079",
+    "Title": "Letter Tile Possibilities",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/letter-tile-possibilities/",
+    "Timestamp": "2025.02.17",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1195",
+    "Title": "Fizz Buzz Multithreaded",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/fizz-buzz-multithreaded/",
+    "Timestamp": "2025.02.13",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3066",
+    "Title": "Minimum Operations to Exceed Threshold Value II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-operations-to-exceed-threshold-value-ii/",
+    "Timestamp": "2025.02.13",
+    "Submissions": "4"
+  },
+  {
+    "ID": "354",
+    "Title": "Russian Doll Envelopes",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/russian-doll-envelopes/",
+    "Timestamp": "2025.02.06",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1726",
+    "Title": "Tuple with Same Product",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/tuple-with-same-product/",
+    "Timestamp": "2025.02.06",
+    "Submissions": "1"
+  },
+  {
+    "ID": "435",
+    "Title": "Non-overlapping Intervals",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/non-overlapping-intervals/",
+    "Timestamp": "2025.02.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1117",
+    "Title": "Building H2O",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/building-h2o/",
+    "Timestamp": "2025.02.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1029",
+    "Title": "Two City Scheduling",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/two-city-scheduling/",
+    "Timestamp": "2025.02.04",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1800",
+    "Title": "Maximum Ascending Subarray Sum",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/maximum-ascending-subarray-sum/",
+    "Timestamp": "2025.02.04",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3105",
+    "Title": "Longest Strictly Increasing or Strictly Decreasing Subarray",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/longest-strictly-increasing-or-strictly-decreasing-subarray/",
+    "Timestamp": "2025.02.03",
+    "Submissions": "5"
+  },
+  {
+    "ID": "684",
+    "Title": "Redundant Connection",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/redundant-connection/",
+    "Timestamp": "2025.01.30",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2017",
+    "Title": "Grid Game",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/grid-game/",
+    "Timestamp": "2025.01.21",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1115",
+    "Title": "Print FooBar Alternately",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/print-foobar-alternately/",
+    "Timestamp": "2025.01.21",
+    "Submissions": "2"
+  },
+  {
+    "ID": "4",
+    "Title": "Median of Two Sorted Arrays",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/median-of-two-sorted-arrays/",
+    "Timestamp": "2025.01.20",
+    "Submissions": "15"
+  },
+  {
+    "ID": "2425",
+    "Title": "Bitwise XOR of All Pairings",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/bitwise-xor-of-all-pairings/",
+    "Timestamp": "2025.01.16",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2260",
+    "Title": "Minimum Consecutive Cards to Pick Up",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-consecutive-cards-to-pick-up/",
+    "Timestamp": "2025.01.13",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1769",
+    "Title": "Minimum Number of Operations to Move All Balls to Each Box",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-number-of-operations-to-move-all-balls-to-each-box/",
+    "Timestamp": "2025.01.06",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2559",
+    "Title": "Count Vowel Strings in Ranges",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-vowel-strings-in-ranges/",
+    "Timestamp": "2025.01.02",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1492",
+    "Title": "The kth Factor of n",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-kth-factor-of-n/",
+    "Timestamp": "2025.01.01",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2405",
+    "Title": "Optimal Partition of String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/optimal-partition-of-string/",
+    "Timestamp": "2025.01.01",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1639",
+    "Title": "Number of Ways to Form a Target String Given a Dictionary",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/number-of-ways-to-form-a-target-string-given-a-dictionary/",
+    "Timestamp": "2024.12.29",
+    "Submissions": "14"
+  },
+  {
+    "ID": "3203",
+    "Title": "Find Minimum Diameter After Merging Two Trees",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-minimum-diameter-after-merging-two-trees/",
+    "Timestamp": "2024.12.26",
+    "Submissions": "8"
+  },
+  {
+    "ID": "2471",
+    "Title": "Minimum Number of Operations to Sort a Binary Tree by Level",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-number-of-operations-to-sort-a-binary-tree-by-level/",
+    "Timestamp": "2024.12.23",
+    "Submissions": "3"
+  },
+  {
+    "ID": "3264",
+    "Title": "Final Array State After K Multiplication Operations I",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/final-array-state-after-k-multiplication-operations-i/",
+    "Timestamp": "2024.12.16",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2558",
+    "Title": "Take Gifts From the Richest Pile",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/take-gifts-from-the-richest-pile/",
+    "Timestamp": "2024.12.12",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2779",
+    "Title": "Maximum Beauty of an Array After Applying Operation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-beauty-of-an-array-after-applying-operation/",
+    "Timestamp": "2024.12.11",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2981",
+    "Title": "Find Longest Special Substring That Occurs Thrice I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-longest-special-substring-that-occurs-thrice-i/",
+    "Timestamp": "2024.12.10",
+    "Submissions": "5"
+  },
+  {
+    "ID": "3152",
+    "Title": "Special Array II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/special-array-ii/",
+    "Timestamp": "2024.12.09",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2054",
+    "Title": "Two Best Non-Overlapping Events",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/two-best-non-overlapping-events/",
+    "Timestamp": "2024.12.08",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1760",
+    "Title": "Minimum Limit of Balls in a Bag",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-limit-of-balls-in-a-bag/",
+    "Timestamp": "2024.12.07",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2554",
+    "Title": "Maximum Number of Integers to Choose From a Range I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-number-of-integers-to-choose-from-a-range-i/",
+    "Timestamp": "2024.12.07",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2337",
+    "Title": "Move Pieces to Obtain a String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/move-pieces-to-obtain-a-string/",
+    "Timestamp": "2024.12.05",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2825",
+    "Title": "Make String a Subsequence Using Cyclic Increments",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/make-string-a-subsequence-using-cyclic-increments/",
+    "Timestamp": "2024.12.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2109",
+    "Title": "Adding Spaces to a String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/adding-spaces-to-a-string/",
+    "Timestamp": "2024.12.03",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1455",
+    "Title": "Check If a Word Occurs As a Prefix of Any Word in a Sentence",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/check-if-a-word-occurs-as-a-prefix-of-any-word-in-a-sentence/",
+    "Timestamp": "2024.12.02",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1346",
+    "Title": "Check If N and Its Double Exist",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/check-if-n-and-its-double-exist/",
+    "Timestamp": "2024.12.01",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2097",
+    "Title": "Valid Arrangement of Pairs",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/valid-arrangement-of-pairs/",
+    "Timestamp": "2024.12.01",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2577",
+    "Title": "Minimum Time to Visit a Cell In a Grid",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-time-to-visit-a-cell-in-a-grid/",
+    "Timestamp": "2024.11.29",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2290",
+    "Title": "Minimum Obstacle Removal to Reach Corner",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-obstacle-removal-to-reach-corner/",
+    "Timestamp": "2024.11.28",
+    "Submissions": "12"
+  },
+  {
+    "ID": "162",
+    "Title": "Find Peak Element",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-peak-element/",
+    "Timestamp": "2024.11.28",
+    "Submissions": "11"
+  },
+  {
+    "ID": "3243",
+    "Title": "Shortest Distance After Road Addition Queries I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/shortest-distance-after-road-addition-queries-i/",
+    "Timestamp": "2024.11.27",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2924",
+    "Title": "Find Champion II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-champion-ii/",
+    "Timestamp": "2024.11.26",
+    "Submissions": "5"
+  },
+  {
+    "ID": "773",
+    "Title": "Sliding Puzzle",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/sliding-puzzle/",
+    "Timestamp": "2024.11.25",
+    "Submissions": "10"
+  },
+  {
+    "ID": "1861",
+    "Title": "Rotating the Box",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/rotating-the-box/",
+    "Timestamp": "2024.11.24",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1072",
+    "Title": "Flip Columns For Maximum Number of Equal Rows",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/flip-columns-for-maximum-number-of-equal-rows/",
+    "Timestamp": "2024.11.23",
+    "Submissions": "3"
+  },
+  {
+    "ID": "15",
+    "Title": "3Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/3sum/",
+    "Timestamp": "2024.11.21",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2257",
+    "Title": "Count Unguarded Cells in the Grid",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-unguarded-cells-in-the-grid/",
+    "Timestamp": "2024.11.21",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2516",
+    "Title": "Take K of Each Character From Left and Right",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/take-k-of-each-character-from-left-and-right/",
+    "Timestamp": "2024.11.21",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2461",
+    "Title": "Maximum Sum of Distinct Subarrays With Length K",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-sum-of-distinct-subarrays-with-length-k/",
+    "Timestamp": "2024.11.19",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1652",
+    "Title": "Defuse the Bomb",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/defuse-the-bomb/",
+    "Timestamp": "2024.11.18",
+    "Submissions": "2"
+  },
+  {
+    "ID": "862",
+    "Title": "Shortest Subarray with Sum at Least K",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/",
+    "Timestamp": "2024.11.17",
+    "Submissions": "9"
+  },
+  {
+    "ID": "3254",
+    "Title": "Find the Power of K-Size Subarrays I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-power-of-k-size-subarrays-i/",
+    "Timestamp": "2024.11.17",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2490",
+    "Title": "Circular Sentence",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/circular-sentence/",
+    "Timestamp": "2024.11.15",
+    "Submissions": "4"
+  },
+  {
+    "ID": "796",
+    "Title": "Rotate String",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/rotate-string/",
+    "Timestamp": "2024.11.15",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3011",
+    "Title": "Find if Array Can Be Sorted",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-if-array-can-be-sorted/",
+    "Timestamp": "2024.11.15",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1574",
+    "Title": "Shortest Subarray to be Removed to Make Array Sorted",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/shortest-subarray-to-be-removed-to-make-array-sorted/",
+    "Timestamp": "2024.11.15",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2064",
+    "Title": "Minimized Maximum of Products Distributed to Any Store",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimized-maximum-of-products-distributed-to-any-store/",
+    "Timestamp": "2024.11.14",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2563",
+    "Title": "Count the Number of Fair Pairs",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-the-number-of-fair-pairs/",
+    "Timestamp": "2024.11.14",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2070",
+    "Title": "Most Beautiful Item for Each Query",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/most-beautiful-item-for-each-query/",
+    "Timestamp": "2024.11.12",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2601",
+    "Title": "Prime Subtraction Operation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/prime-subtraction-operation/",
+    "Timestamp": "2024.11.11",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3097",
+    "Title": "Shortest Subarray With OR at Least K II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/shortest-subarray-with-or-at-least-k-ii/",
+    "Timestamp": "2024.11.10",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3133",
+    "Title": "Minimum Array End",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-array-end/",
+    "Timestamp": "2024.11.09",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1829",
+    "Title": "Maximum XOR for Each Query",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-xor-for-each-query/",
+    "Timestamp": "2024.11.08",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2275",
+    "Title": "Largest Combination With Bitwise AND Greater Than Zero",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/largest-combination-with-bitwise-and-greater-than-zero/",
+    "Timestamp": "2024.11.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2914",
+    "Title": "Minimum Number of Changes to Make Binary String Beautiful",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-number-of-changes-to-make-binary-string-beautiful/",
+    "Timestamp": "2024.11.05",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3163",
+    "Title": "String Compression III",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/string-compression-iii/",
+    "Timestamp": "2024.11.04",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2463",
+    "Title": "Minimum Total Distance Traveled",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-total-distance-traveled/",
+    "Timestamp": "2024.11.04",
+    "Submissions": "28"
+  },
+  {
+    "ID": "2501",
+    "Title": "Longest Square Streak in an Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-square-streak-in-an-array/",
+    "Timestamp": "2024.10.28",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1277",
+    "Title": "Count Square Submatrices with All Ones",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-square-submatrices-with-all-ones/",
+    "Timestamp": "2024.10.27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "951",
+    "Title": "Flip Equivalent Binary Trees",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/flip-equivalent-binary-trees/",
+    "Timestamp": "2024.10.24",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2641",
+    "Title": "Cousins in Binary Tree II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/cousins-in-binary-tree-ii/",
+    "Timestamp": "2024.10.23",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2583",
+    "Title": "Kth Largest Sum in a Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/kth-largest-sum-in-a-binary-tree/",
+    "Timestamp": "2024.10.22",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1593",
+    "Title": "Split a String Into the Max Number of Unique Substrings",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/split-a-string-into-the-max-number-of-unique-substrings/",
+    "Timestamp": "2024.10.21",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1106",
+    "Title": "Parsing A Boolean Expression",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/parsing-a-boolean-expression/",
+    "Timestamp": "2024.10.21",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1545",
+    "Title": "Find Kth Bit in Nth Binary String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-kth-bit-in-nth-binary-string/",
+    "Timestamp": "2024.10.19",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2044",
+    "Title": "Count Number of Maximum Bitwise-OR Subsets",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-number-of-maximum-bitwise-or-subsets/",
+    "Timestamp": "2024.10.18",
+    "Submissions": "1"
+  },
+  {
+    "ID": "670",
+    "Title": "Maximum Swap",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-swap/",
+    "Timestamp": "2024.10.17",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2938",
+    "Title": "Separate Black and White Balls",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/separate-black-and-white-balls/",
+    "Timestamp": "2024.10.15",
+    "Submissions": "4"
+  },
+  {
+    "ID": "106",
+    "Title": "Construct Binary Tree from Inorder and Postorder Traversal",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/construct-binary-tree-from-inorder-and-postorder-traversal/",
+    "Timestamp": "2024.10.15",
+    "Submissions": "2"
+  },
+  {
+    "ID": "114",
+    "Title": "Flatten Binary Tree to Linked List",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/flatten-binary-tree-to-linked-list/",
+    "Timestamp": "2024.10.15",
+    "Submissions": "10"
+  },
+  {
+    "ID": "2530",
+    "Title": "Maximal Score After Applying K Operations",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximal-score-after-applying-k-operations/",
+    "Timestamp": "2024.10.14",
+    "Submissions": "2"
+  },
+  {
+    "ID": "632",
+    "Title": "Smallest Range Covering Elements from K Lists",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/",
+    "Timestamp": "2024.10.13",
+    "Submissions": "7"
+  },
+  {
+    "ID": "1942",
+    "Title": "The Number of the Smallest Unoccupied Chair",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-number-of-the-smallest-unoccupied-chair/",
+    "Timestamp": "2024.10.12",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1963",
+    "Title": "Minimum Number of Swaps to Make the String Balanced",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-number-of-swaps-to-make-the-string-balanced/",
+    "Timestamp": "2024.10.08",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1",
+    "Title": "Two Sum",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/two-sum/",
+    "Timestamp": "2024.10.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "567",
+    "Title": "Permutation in String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/permutation-in-string/",
+    "Timestamp": "2024.10.05",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1590",
+    "Title": "Make Sum Divisible by P",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/make-sum-divisible-by-p/",
+    "Timestamp": "2024.10.04",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1497",
+    "Title": "Check If Array Pairs Are Divisible by k",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/check-if-array-pairs-are-divisible-by-k/",
+    "Timestamp": "2024.10.02",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1381",
+    "Title": "Design a Stack With Increment Operation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-a-stack-with-increment-operation/",
+    "Timestamp": "2024.09.30",
+    "Submissions": "7"
+  },
+  {
+    "ID": "432",
+    "Title": "All O`one Data Structure",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/all-oone-data-structure/",
+    "Timestamp": "2024.09.30",
+    "Submissions": "5"
+  },
+  {
+    "ID": "641",
+    "Title": "Design Circular Deque",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-circular-deque/",
+    "Timestamp": "2024.09.28",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2",
+    "Title": "Add Two Numbers",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/add-two-numbers/",
+    "Timestamp": "2024.09.25",
+    "Submissions": "1"
+  },
+  {
+    "ID": "440",
+    "Title": "K-th Smallest in Lexicographical Order",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/k-th-smallest-in-lexicographical-order/",
+    "Timestamp": "2024.09.24",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2707",
+    "Title": "Extra Characters in a String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/extra-characters-in-a-string/",
+    "Timestamp": "2024.09.23",
+    "Submissions": "4"
+  },
+  {
+    "ID": "179",
+    "Title": "Largest Number",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/largest-number/",
+    "Timestamp": "2024.09.19",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1932",
+    "Title": "Merge BSTs to Create Single BST",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/merge-bsts-to-create-single-bst/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "6"
+  },
+  {
+    "ID": "230",
+    "Title": "Kth Smallest Element in a BST",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/kth-smallest-element-in-a-bst/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "6"
+  },
+  {
+    "ID": "653",
+    "Title": "Two Sum IV - Input is a BST",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/two-sum-iv-input-is-a-bst/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "6"
+  },
+  {
+    "ID": "884",
+    "Title": "Uncommon Words from Two Sentences",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/uncommon-words-from-two-sentences/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "3"
+  },
+  {
+    "ID": "99",
+    "Title": "Recover Binary Search Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/recover-binary-search-tree/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "3"
+  },
+  {
+    "ID": "721",
+    "Title": "Accounts Merge",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/accounts-merge/",
+    "Timestamp": "2024.09.17",
+    "Submissions": "10"
+  },
+  {
+    "ID": "539",
+    "Title": "Minimum Time Difference",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-time-difference/",
+    "Timestamp": "2024.09.16",
+    "Submissions": "3"
+  },
+  {
+    "ID": "124",
+    "Title": "Binary Tree Maximum Path Sum",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/binary-tree-maximum-path-sum/",
+    "Timestamp": "2024.09.15",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1371",
+    "Title": "Find the Longest Substring Containing Vowels in Even Counts",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-longest-substring-containing-vowels-in-even-counts/",
+    "Timestamp": "2024.09.15",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1684",
+    "Title": "Count the Number of Consistent Strings",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/count-the-number-of-consistent-strings/",
+    "Timestamp": "2024.09.13",
+    "Submissions": "2"
+  },
+  {
+    "ID": "221",
+    "Title": "Maximal Square",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximal-square/",
+    "Timestamp": "2024.09.12",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2807",
+    "Title": "Insert Greatest Common Divisors in Linked List",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/insert-greatest-common-divisors-in-linked-list/",
+    "Timestamp": "2024.09.10",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2104",
+    "Title": "Sum of Subarray Ranges",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/sum-of-subarray-ranges/",
+    "Timestamp": "2024.09.10",
+    "Submissions": "6"
+  },
+  {
+    "ID": "402",
+    "Title": "Remove K Digits",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/remove-k-digits/",
+    "Timestamp": "2024.09.09",
+    "Submissions": "8"
+  },
+  {
+    "ID": "98",
+    "Title": "Validate Binary Search Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/validate-binary-search-tree/",
+    "Timestamp": "2024.09.09",
+    "Submissions": "2"
+  },
+  {
+    "ID": "701",
+    "Title": "Insert into a Binary Search Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/insert-into-a-binary-search-tree/",
+    "Timestamp": "2024.09.09",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1367",
+    "Title": "Linked List in Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/linked-list-in-binary-tree/",
+    "Timestamp": "2024.09.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "3217",
+    "Title": "Delete Nodes From Linked List Present in Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/delete-nodes-from-linked-list-present-in-array/",
+    "Timestamp": "2024.09.06",
+    "Submissions": "1"
+  },
+  {
+    "ID": "94",
+    "Title": "Binary Tree Inorder Traversal",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/binary-tree-inorder-traversal/",
+    "Timestamp": "2024.09.06",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2028",
+    "Title": "Find Missing Observations",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-missing-observations/",
+    "Timestamp": "2024.09.06",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1092",
+    "Title": "Shortest Common Supersequence",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/shortest-common-supersequence/",
+    "Timestamp": "2024.09.05",
+    "Submissions": "1"
+  },
+  {
+    "ID": "874",
+    "Title": "Walking Robot Simulation",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/walking-robot-simulation/",
+    "Timestamp": "2024.09.04",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1945",
+    "Title": "Sum of Digits of String After Convert",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/sum-of-digits-of-string-after-convert/",
+    "Timestamp": "2024.09.03",
+    "Submissions": "1"
+  },
+  {
+    "ID": "992",
+    "Title": "Subarrays with K Different Integers",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/subarrays-with-k-different-integers/",
+    "Timestamp": "2024.09.03",
+    "Submissions": "3"
+  },
+  {
+    "ID": "543",
+    "Title": "Diameter of Binary Tree",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/diameter-of-binary-tree/",
+    "Timestamp": "2024.09.02",
+    "Submissions": "4"
+  },
+  {
+    "ID": "102",
+    "Title": "Binary Tree Level Order Traversal",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/binary-tree-level-order-traversal/",
+    "Timestamp": "2024.09.02",
+    "Submissions": "4"
+  },
+  {
+    "ID": "236",
+    "Title": "Lowest Common Ancestor of a Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/",
+    "Timestamp": "2024.09.02",
+    "Submissions": "3"
+  },
+  {
+    "ID": "901",
+    "Title": "Online Stock Span",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/online-stock-span/",
+    "Timestamp": "2024.09.01",
+    "Submissions": "3"
+  },
+  {
+    "ID": "416",
+    "Title": "Partition Equal Subset Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/partition-equal-subset-sum/",
+    "Timestamp": "2024.08.21",
+    "Submissions": "9"
+  },
+  {
+    "ID": "664",
+    "Title": "Strange Printer",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/strange-printer/",
+    "Timestamp": "2024.08.21",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1140",
+    "Title": "Stone Game II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/stone-game-ii/",
+    "Timestamp": "2024.08.20",
+    "Submissions": "4"
+  },
+  {
+    "ID": "624",
+    "Title": "Maximum Distance in Arrays",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-distance-in-arrays/",
+    "Timestamp": "2024.08.16",
+    "Submissions": "4"
+  },
+  {
+    "ID": "39",
+    "Title": "Combination Sum",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/combination-sum/",
+    "Timestamp": "2024.08.14",
+    "Submissions": "2"
+  },
+  {
+    "ID": "40",
+    "Title": "Combination Sum II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/combination-sum-ii/",
+    "Timestamp": "2024.08.14",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2556",
+    "Title": "Disconnect Path in a Binary Matrix by at Most One Flip",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/disconnect-path-in-a-binary-matrix-by-at-most-one-flip/",
+    "Timestamp": "2024.08.13",
+    "Submissions": "7"
+  },
+  {
+    "ID": "703",
+    "Title": "Kth Largest Element in a Stream",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/kth-largest-element-in-a-stream/",
+    "Timestamp": "2024.08.13",
+    "Submissions": "5"
+  },
+  {
+    "ID": "547",
+    "Title": "Number of Provinces",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/number-of-provinces/",
+    "Timestamp": "2024.08.11",
+    "Submissions": "4"
+  },
+  {
+    "ID": "885",
+    "Title": "Spiral Matrix III",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/spiral-matrix-iii/",
+    "Timestamp": "2024.08.09",
+    "Submissions": "10"
+  },
+  {
+    "ID": "273",
+    "Title": "Integer to English Words",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/integer-to-english-words/",
+    "Timestamp": "2024.08.08",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1579",
+    "Title": "Remove Max Number of Edges to Keep Graph Fully Traversable",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/remove-max-number-of-edges-to-keep-graph-fully-traversable/",
+    "Timestamp": "2024.08.07",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1255",
+    "Title": "Maximum Score Words Formed by Letters",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-score-words-formed-by-letters/",
+    "Timestamp": "2024.08.04",
+    "Submissions": "4"
+  },
+  {
+    "ID": "149",
+    "Title": "Max Points on a Line",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/max-points-on-a-line/",
+    "Timestamp": "2024.08.04",
+    "Submissions": "12"
+  },
+  {
+    "ID": "1460",
+    "Title": "Make Two Arrays Equal by Reversing Subarrays",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/make-two-arrays-equal-by-reversing-subarrays/",
+    "Timestamp": "2024.08.03",
+    "Submissions": "2"
+  },
+  {
+    "ID": "238",
+    "Title": "Product of Array Except Self",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/product-of-array-except-self/",
+    "Timestamp": "2024.08.02",
+    "Submissions": "3"
+  },
+  {
+    "ID": "437",
+    "Title": "Path Sum III",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/path-sum-iii/",
+    "Timestamp": "2024.08.02",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2722",
+    "Title": "Join Two Arrays by ID",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/join-two-arrays-by-id/",
+    "Timestamp": "2024.07.31",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2694",
+    "Title": "Event Emitter",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/event-emitter/",
+    "Timestamp": "2024.07.31",
+    "Submissions": "3"
+  },
+  {
+    "ID": "198",
+    "Title": "House Robber",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/house-robber/",
+    "Timestamp": "2024.07.19",
+    "Submissions": "11"
+  },
+  {
+    "ID": "377",
+    "Title": "Combination Sum IV",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/combination-sum-iv/",
+    "Timestamp": "2024.07.19",
+    "Submissions": "4"
+  },
+  {
+    "ID": "417",
+    "Title": "Pacific Atlantic Water Flow",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/pacific-atlantic-water-flow/",
+    "Timestamp": "2024.07.15",
+    "Submissions": "7"
+  },
+  {
+    "ID": "53",
+    "Title": "Maximum Subarray",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-subarray/",
+    "Timestamp": "2024.07.15",
+    "Submissions": "1"
+  },
+  {
+    "ID": "347",
+    "Title": "Top K Frequent Elements",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/top-k-frequent-elements/",
+    "Timestamp": "2024.07.14",
+    "Submissions": "5"
+  },
+  {
+    "ID": "407",
+    "Title": "Trapping Rain Water II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/trapping-rain-water-ii/",
+    "Timestamp": "2024.05.23",
+    "Submissions": "1"
+  },
+  {
+    "ID": "778",
+    "Title": "Swim in Rising Water",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/swim-in-rising-water/",
+    "Timestamp": "2024.05.23",
+    "Submissions": "3"
+  },
+  {
+    "ID": "732",
+    "Title": "My Calendar III",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/my-calendar-iii/",
+    "Timestamp": "2024.05.22",
+    "Submissions": "1"
+  },
+  {
+    "ID": "731",
+    "Title": "My Calendar II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/my-calendar-ii/",
+    "Timestamp": "2024.05.21",
+    "Submissions": "1"
+  },
+  {
+    "ID": "729",
+    "Title": "My Calendar I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/my-calendar-i/",
+    "Timestamp": "2024.05.20",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1114",
+    "Title": "Print in Order",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/print-in-order/",
+    "Timestamp": "2024.05.20",
+    "Submissions": "1"
+  },
+  {
+    "ID": "3153",
+    "Title": "Sum of Digit Differences of All Pairs",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/sum-of-digit-differences-of-all-pairs/",
+    "Timestamp": "2024.05.19",
+    "Submissions": "1"
+  },
+  {
+    "ID": "278",
+    "Title": "First Bad Version",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/first-bad-version/",
+    "Timestamp": "2024.05.17",
+    "Submissions": "3"
+  },
+  {
+    "ID": "167",
+    "Title": "Two Sum II - Input Array Is Sorted",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/",
+    "Timestamp": "2024.05.16",
+    "Submissions": "3"
+  },
+  {
+    "ID": "240",
+    "Title": "Search a 2D Matrix II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/search-a-2d-matrix-ii/",
+    "Timestamp": "2024.05.15",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2262",
+    "Title": "Total Appeal of A String",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/total-appeal-of-a-string/",
+    "Timestamp": "2024.05.07",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2259",
+    "Title": "Remove Digit From Number to Maximize Result",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/remove-digit-from-number-to-maximize-result/",
+    "Timestamp": "2024.05.07",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2261",
+    "Title": "K Divisible Elements Subarrays",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/k-divisible-elements-subarrays/",
+    "Timestamp": "2024.05.07",
+    "Submissions": "7"
+  },
+  {
+    "ID": "3130",
+    "Title": "Find All Possible Stable Binary Arrays II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-all-possible-stable-binary-arrays-ii/",
+    "Timestamp": "2024.05.03",
+    "Submissions": "4"
+  },
+  {
+    "ID": "3129",
+    "Title": "Find All Possible Stable Binary Arrays I",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-all-possible-stable-binary-arrays-i/",
+    "Timestamp": "2024.05.03",
+    "Submissions": "14"
+  },
+  {
+    "ID": "743",
+    "Title": "Network Delay Time",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/network-delay-time/",
+    "Timestamp": "2024.04.30",
+    "Submissions": "3"
+  },
+  {
+    "ID": "85",
+    "Title": "Maximal Rectangle",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximal-rectangle/",
+    "Timestamp": "2024.04.19",
+    "Submissions": "10"
+  },
+  {
+    "ID": "115",
+    "Title": "Distinct Subsequences",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/distinct-subsequences/",
+    "Timestamp": "2024.04.18",
+    "Submissions": "7"
+  },
+  {
+    "ID": "82",
+    "Title": "Remove Duplicates from Sorted List II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/remove-duplicates-from-sorted-list-ii/",
+    "Timestamp": "2024.04.16",
+    "Submissions": "1"
+  },
+  {
+    "ID": "502",
+    "Title": "IPO",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/ipo/",
+    "Timestamp": "2024.04.04",
+    "Submissions": "5"
+  },
+  {
+    "ID": "713",
+    "Title": "Subarray Product Less Than K",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/subarray-product-less-than-k/",
+    "Timestamp": "2024.03.27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "442",
+    "Title": "Find All Duplicates in an Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-all-duplicates-in-an-array/",
+    "Timestamp": "2024.03.25",
+    "Submissions": "2"
+  },
+  {
+    "ID": "287",
+    "Title": "Find the Duplicate Number",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-the-duplicate-number/",
+    "Timestamp": "2024.03.22",
+    "Submissions": "5"
+  },
+  {
+    "ID": "791",
+    "Title": "Custom Sort String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/custom-sort-string/",
+    "Timestamp": "2024.03.11",
+    "Submissions": "1"
+  },
+  {
+    "ID": "1552",
+    "Title": "Magnetic Force Between Two Balls",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/magnetic-force-between-two-balls/",
+    "Timestamp": "2024.02.28",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1981",
+    "Title": "Minimize the Difference Between Target and Chosen Elements",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimize-the-difference-between-target-and-chosen-elements/",
+    "Timestamp": "2024.02.28",
+    "Submissions": "3"
+  },
+  {
+    "ID": "698",
+    "Title": "Partition to K Equal Sum Subsets",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/partition-to-k-equal-sum-subsets/",
+    "Timestamp": "2024.02.28",
+    "Submissions": "3"
+  },
+  {
+    "ID": "188",
+    "Title": "Best Time to Buy and Sell Stock IV",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock-iv/",
+    "Timestamp": "2024.02.27",
+    "Submissions": "4"
+  },
+  {
+    "ID": "312",
+    "Title": "Burst Balloons",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/burst-balloons/",
+    "Timestamp": "2024.02.27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "863",
+    "Title": "All Nodes Distance K in Binary Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/all-nodes-distance-k-in-binary-tree/",
+    "Timestamp": "2024.02.27",
+    "Submissions": "3"
+  },
+  {
+    "ID": "23",
+    "Title": "Merge k Sorted Lists",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/merge-k-sorted-lists/",
+    "Timestamp": "2024.02.26",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1472",
+    "Title": "Design Browser History",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-browser-history/",
+    "Timestamp": "2024.02.23",
+    "Submissions": "1"
+  },
+  {
+    "ID": "139",
+    "Title": "Word Break",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/word-break/",
+    "Timestamp": "2024.02.19",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2334",
+    "Title": "Subarray With Elements Greater Than Varying Threshold",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/subarray-with-elements-greater-than-varying-threshold/",
+    "Timestamp": "2023.12.27",
+    "Submissions": "7"
+  },
+  {
+    "ID": "472",
+    "Title": "Concatenated Words",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/concatenated-words/",
+    "Timestamp": "2023.12.05",
+    "Submissions": "13"
+  },
+  {
+    "ID": "968",
+    "Title": "Binary Tree Cameras",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/binary-tree-cameras/",
+    "Timestamp": "2023.12.02",
+    "Submissions": "11"
+  },
+  {
+    "ID": "128",
+    "Title": "Longest Consecutive Sequence",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-consecutive-sequence/",
+    "Timestamp": "2023.11.30",
+    "Submissions": "4"
+  },
+  {
+    "ID": "130",
+    "Title": "Surrounded Regions",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/surrounded-regions/",
+    "Timestamp": "2023.11.29",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2498",
+    "Title": "Frog Jump II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/frog-jump-ii/",
+    "Timestamp": "2023.11.28",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2476",
+    "Title": "Closest Nodes Queries in a Binary Search Tree",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/closest-nodes-queries-in-a-binary-search-tree/",
+    "Timestamp": "2023.11.28",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1871",
+    "Title": "Jump Game VII",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/jump-game-vii/",
+    "Timestamp": "2023.11.27",
+    "Submissions": "5"
+  },
+  {
+    "ID": "718",
+    "Title": "Maximum Length of Repeated Subarray",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/maximum-length-of-repeated-subarray/",
+    "Timestamp": "2023.11.23",
+    "Submissions": "13"
+  },
+  {
+    "ID": "456",
+    "Title": "132 Pattern",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/132-pattern/",
+    "Timestamp": "2023.11.23",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2050",
+    "Title": "Parallel Courses III",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/parallel-courses-iii/",
+    "Timestamp": "2023.11.22",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1617",
+    "Title": "Count Subtrees With Max Distance Between Cities",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/count-subtrees-with-max-distance-between-cities/",
+    "Timestamp": "2023.11.22",
+    "Submissions": "23"
+  },
+  {
+    "ID": "2332",
+    "Title": "The Latest Time to Catch a Bus",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-latest-time-to-catch-a-bus/",
+    "Timestamp": "2023.11.19",
+    "Submissions": "3"
+  },
+  {
+    "ID": "2856",
+    "Title": "Minimum Array Length After Pair Removals",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-array-length-after-pair-removals/",
+    "Timestamp": "2023.11.17",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1488",
+    "Title": "Avoid Flood in The City",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/avoid-flood-in-the-city/",
+    "Timestamp": "2023.11.15",
+    "Submissions": "11"
+  },
+  {
+    "ID": "969",
+    "Title": "Pancake Sorting",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/pancake-sorting/",
+    "Timestamp": "2023.11.13",
+    "Submissions": "4"
+  },
+  {
+    "ID": "752",
+    "Title": "Open the Lock",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/open-the-lock/",
+    "Timestamp": "2023.11.13",
+    "Submissions": "7"
+  },
+  {
+    "ID": "117",
+    "Title": "Populating Next Right Pointers in Each Node II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/populating-next-right-pointers-in-each-node-ii/",
+    "Timestamp": "2023.11.09",
+    "Submissions": "9"
+  },
+  {
+    "ID": "934",
+    "Title": "Shortest Bridge",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/shortest-bridge/",
+    "Timestamp": "2023.11.08",
+    "Submissions": "8"
+  },
+  {
+    "ID": "792",
+    "Title": "Number of Matching Subsequences",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/number-of-matching-subsequences/",
+    "Timestamp": "2023.11.08",
+    "Submissions": "1"
+  },
+  {
+    "ID": "424",
+    "Title": "Longest Repeating Character Replacement",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-repeating-character-replacement/",
+    "Timestamp": "2023.11.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "151",
+    "Title": "Reverse Words in a String",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/reverse-words-in-a-string/",
+    "Timestamp": "2023.11.07",
+    "Submissions": "3"
+  },
+  {
+    "ID": "315",
+    "Title": "Count of Smaller Numbers After Self",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/count-of-smaller-numbers-after-self/",
+    "Timestamp": "2023.11.05",
+    "Submissions": "9"
+  },
+  {
+    "ID": "210",
+    "Title": "Course Schedule II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/course-schedule-ii/",
+    "Timestamp": "2023.11.04",
+    "Submissions": "5"
+  },
+  {
+    "ID": "76",
+    "Title": "Minimum Window Substring",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-window-substring/",
+    "Timestamp": "2023.10.31",
+    "Submissions": "11"
+  },
+  {
+    "ID": "135",
+    "Title": "Candy",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/candy/",
+    "Timestamp": "2023.10.31",
+    "Submissions": "6"
+  },
+  {
+    "ID": "560",
+    "Title": "Subarray Sum Equals K",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/subarray-sum-equals-k/",
+    "Timestamp": "2023.10.17",
+    "Submissions": "1"
+  },
+  {
+    "ID": "84",
+    "Title": "Largest Rectangle in Histogram",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/largest-rectangle-in-histogram/",
+    "Timestamp": "2023.10.13",
+    "Submissions": "1"
+  },
+  {
+    "ID": "468",
+    "Title": "Validate IP Address",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/validate-ip-address/",
+    "Timestamp": "2022.11.25",
+    "Submissions": "6"
+  },
+  {
+    "ID": "2272",
+    "Title": "Substring With Largest Variance",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/substring-with-largest-variance/",
+    "Timestamp": "2022.10.23",
+    "Submissions": "3"
+  },
+  {
+    "ID": "691",
+    "Title": "Stickers to Spell Word",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/stickers-to-spell-word/",
+    "Timestamp": "2022.10.04",
+    "Submissions": "8"
+  },
+  {
+    "ID": "1312",
+    "Title": "Minimum Insertion Steps to Make a String Palindrome",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-insertion-steps-to-make-a-string-palindrome/",
+    "Timestamp": "2022.10.04",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1578",
+    "Title": "Minimum Time to Make Rope Colorful",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-time-to-make-rope-colorful/",
+    "Timestamp": "2022.10.04",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1151",
+    "Title": "Minimum Swaps to Group All 1's Together",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-swaps-to-group-all-1s-together/",
+    "Timestamp": "2022.09.29",
+    "Submissions": "3"
+  },
+  {
+    "ID": "576",
+    "Title": "Out of Boundary Paths",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/out-of-boundary-paths/",
+    "Timestamp": "2022.09.29",
+    "Submissions": "4"
+  },
+  {
+    "ID": "505",
+    "Title": "The Maze II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-maze-ii/",
+    "Timestamp": "2022.09.28",
+    "Submissions": "7"
+  },
+  {
+    "ID": "2421",
+    "Title": "Number of Good Paths",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/number-of-good-paths/",
+    "Timestamp": "2022.09.25",
+    "Submissions": "4"
+  },
+  {
+    "ID": "2420",
+    "Title": "Find All Good Indices",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-all-good-indices/",
+    "Timestamp": "2022.09.25",
+    "Submissions": "10"
+  },
+  {
+    "ID": "2419",
+    "Title": "Longest Subarray With Maximum Bitwise AND",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/longest-subarray-with-maximum-bitwise-and/",
+    "Timestamp": "2022.09.25",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2418",
+    "Title": "Sort the People",
+    "Difficulty": "Easy",
+    "URL": "https://leetcode.com/problems/sort-the-people/",
+    "Timestamp": "2022.09.25",
+    "Submissions": "2"
+  },
+  {
+    "ID": "622",
+    "Title": "Design Circular Queue",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/design-circular-queue/",
+    "Timestamp": "2022.09.25",
+    "Submissions": "3"
+  },
+  {
+    "ID": "87",
+    "Title": "Scramble String",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/scramble-string/",
+    "Timestamp": "2022.09.24",
+    "Submissions": "15"
+  },
+  {
+    "ID": "1680",
+    "Title": "Concatenation of Consecutive Binary Numbers",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/concatenation-of-consecutive-binary-numbers/",
+    "Timestamp": "2022.09.23",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1824",
+    "Title": "Minimum Sideway Jumps",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-sideway-jumps/",
+    "Timestamp": "2022.09.23",
+    "Submissions": "7"
+  },
+  {
+    "ID": "486",
+    "Title": "Predict the Winner",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/predict-the-winner/",
+    "Timestamp": "2022.09.21",
+    "Submissions": "6"
+  },
+  {
+    "ID": "1996",
+    "Title": "The Number of Weak Characters in the Game",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/the-number-of-weak-characters-in-the-game/",
+    "Timestamp": "2022.09.21",
+    "Submissions": "7"
+  },
+  {
+    "ID": "1691",
+    "Title": "Maximum Height by Stacking Cuboids",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/maximum-height-by-stacking-cuboids/",
+    "Timestamp": "2022.09.21",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1044",
+    "Title": "Longest Duplicate Substring",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/longest-duplicate-substring/",
+    "Timestamp": "2022.09.20",
+    "Submissions": "8"
+  },
+  {
+    "ID": "30",
+    "Title": "Substring with Concatenation of All Words",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/substring-with-concatenation-of-all-words/",
+    "Timestamp": "2022.09.19",
+    "Submissions": "3"
+  },
+  {
+    "ID": "727",
+    "Title": "Minimum Window Subsequence",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-window-subsequence/",
+    "Timestamp": "2022.09.19",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1650",
+    "Title": "Lowest Common Ancestor of a Binary Tree III",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree-iii/",
+    "Timestamp": "2022.09.18",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1095",
+    "Title": "Find in Mountain Array",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/find-in-mountain-array/",
+    "Timestamp": "2022.09.18",
+    "Submissions": "4"
+  },
+  {
+    "ID": "1885",
+    "Title": "Count Pairs in Two Arrays",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/count-pairs-in-two-arrays/",
+    "Timestamp": "2022.09.18",
+    "Submissions": "4"
+  },
+  {
+    "ID": "668",
+    "Title": "Kth Smallest Number in Multiplication Table",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/kth-smallest-number-in-multiplication-table/",
+    "Timestamp": "2022.09.17",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1014",
+    "Title": "Best Sightseeing Pair",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/best-sightseeing-pair/",
+    "Timestamp": "2022.09.17",
+    "Submissions": "5"
+  },
+  {
+    "ID": "1478",
+    "Title": "Allocate Mailboxes",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/allocate-mailboxes/",
+    "Timestamp": "2022.09.17",
+    "Submissions": "4"
+  },
+  {
+    "ID": "272",
+    "Title": "Closest Binary Search Tree Value II",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/closest-binary-search-tree-value-ii/",
+    "Timestamp": "2022.09.15",
+    "Submissions": "1"
+  },
+  {
+    "ID": "2007",
+    "Title": "Find Original Array From Doubled Array",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/find-original-array-from-doubled-array/",
+    "Timestamp": "2022.09.15",
+    "Submissions": "4"
+  },
+  {
+    "ID": "716",
+    "Title": "Max Stack",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/max-stack/",
+    "Timestamp": "2022.09.15",
+    "Submissions": "6"
+  },
+  {
+    "ID": "224",
+    "Title": "Basic Calculator",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/basic-calculator/",
+    "Timestamp": "2022.09.15",
+    "Submissions": "6"
+  },
+  {
+    "ID": "256",
+    "Title": "Paint House",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/paint-house/",
+    "Timestamp": "2022.09.12",
+    "Submissions": "2"
+  },
+  {
+    "ID": "2406",
+    "Title": "Divide Intervals Into Minimum Number of Groups",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/divide-intervals-into-minimum-number-of-groups/",
+    "Timestamp": "2022.09.12",
+    "Submissions": "3"
+  },
+  {
+    "ID": "1326",
+    "Title": "Minimum Number of Taps to Open to Water a Garden",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/minimum-number-of-taps-to-open-to-water-a-garden/",
+    "Timestamp": "2022.09.12",
+    "Submissions": "10"
+  },
+  {
+    "ID": "452",
+    "Title": "Minimum Number of Arrows to Burst Balloons",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/",
+    "Timestamp": "2022.09.07",
+    "Submissions": "5"
+  },
+  {
+    "ID": "253",
+    "Title": "Meeting Rooms II",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/meeting-rooms-ii/",
+    "Timestamp": "2022.09.07",
+    "Submissions": "7"
+  },
+  {
+    "ID": "16",
+    "Title": "3Sum Closest",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/3sum-closest/",
+    "Timestamp": "2022.09.07",
+    "Submissions": "5"
+  },
+  {
+    "ID": "2102",
+    "Title": "Sequentially Ordinal Rank Tracker",
+    "Difficulty": "Hard",
+    "URL": "https://leetcode.com/problems/sequentially-ordinal-rank-tracker/",
+    "Timestamp": "2022.09.07",
+    "Submissions": "2"
+  },
+  {
+    "ID": "1041",
+    "Title": "Robot Bounded In Circle",
+    "Difficulty": "Medium",
+    "URL": "https://leetcode.com/problems/robot-bounded-in-circle/",
+    "Timestamp": "2022.07.04",
+    "Submissions": "1"
+  }
+]
