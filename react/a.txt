@@ -9,3 +9,5 @@ https://algomaster.io/learn/eng-blogs
 https://mail.google.com/mail/u/0/#search/magic+link/FMfcgzQgLPHpvCkGqxXqhLPtHsfJBRXs
 https://www.puneetpatwari.in/
 https://www.puneetpatwari.in/login?error=missing_code
+
+https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead
