@@ -15,46 +15,56 @@
    - [Implementation — Adjacency List](#implementation-adjacency-list)
    - [Implementation — Grid](#implementation-grid)
    - [Complexity Analysis](#complexity-analysis)
-3. [0-1 BFS — The Deque Trick](#3-0-1-bfs)
-   - [Why Not Just Use Dijkstra?](#why-not-just-use-dijkstra)
-   - [How the Deque Maintains Sorted Order](#how-the-deque-maintains-sorted-order)
-   - [Step-by-Step Trace](#0-1-bfs-trace)
+3. [0-1 BFS — The Deque Trick (Beginner-Friendly)](#3-0-1-bfs)
+   - [The Simplest Way to Think About It](#the-simplest-way-to-think-about-it)
+   - [Building Up from Regular BFS](#building-up-from-regular-bfs)
+   - [The Deque Rule (Just Two Rules)](#the-deque-rule)
+   - [Full Walkthrough with Pictures](#full-walkthrough-with-pictures)
+   - [When to Use 0-1 BFS — Cheat Sheet](#when-to-use-0-1-bfs)
    - [Implementation](#0-1-bfs-implementation)
-4. [Dijkstra vs 0-1 BFS vs BFS — Decision Framework](#4-decision-framework)
-5. [Variant: Bottleneck Shortest Path (Max-Min / Min-Max)](#5-bottleneck-shortest-path)
-6. [Variant: Dijkstra with State (r, c, extra)](#6-dijkstra-with-state)
-7. [Case Study: LC 3286 — Find a Safe Walk Through a Grid](#7-case-study-safe-walk)
-8. [Common Bugs & Pitfalls](#8-common-bugs)
-9. [Practice Problems — Graded by Pattern](#9-practice-problems)
-10. [Mental Checklist Before Coding](#10-mental-checklist)
+4. [Bellman-Ford Algorithm — Handling Negative Edges](#4-bellman-ford)
+   - [Why Dijkstra Breaks with Negative Edges](#why-dijkstra-breaks-with-negative-edges)
+   - [The Bellman-Ford Idea](#the-bellman-ford-idea)
+   - [Step-by-Step Trace](#bellman-ford-trace)
+   - [Detecting Negative Cycles](#detecting-negative-cycles)
+   - [Implementation](#bellman-ford-implementation)
+   - [SPFA — The Optimized Version](#spfa)
+5. [Dijkstra vs 0-1 BFS vs BFS vs Bellman-Ford — Decision Framework](#5-decision-framework)
+6. [Variant: Bottleneck Shortest Path (Max-Min / Min-Max)](#6-bottleneck-shortest-path)
+7. [Variant: Dijkstra with State (r, c, extra)](#7-dijkstra-with-state)
+8. [Case Study: LC 3286 — Find a Safe Walk Through a Grid](#8-case-study-safe-walk)
+9. [Common Bugs & Pitfalls](#9-common-bugs)
+10. [Practice Problems — Graded by Pattern](#10-practice-problems)
+11. [Mental Checklist Before Coding](#11-mental-checklist)
 
 ---
 
 ## 1. The Core Idea
 
-**Single-source shortest path (SSSP):** Given a graph with non-negative edge weights and a source node, find the minimum-cost path from source to every other node.
+**Single-source shortest path (SSSP):** Given a graph with edge weights and a source node, find the minimum-cost path from source to every other node.
 
-Three algorithms solve this, each optimized for different weight constraints:
+Four algorithms solve this, each optimized for different weight constraints:
 
 ```
-                        Edge weights
-                            │
-            ┌───────────────┼───────────────┐
-            │               │               │
-       All equal        Only {0, 1}     Arbitrary ≥ 0
-            │               │               │
-          BFS           0-1 BFS         Dijkstra
-        O(V + E)        O(V + E)      O((V+E) log V)
-        (queue)         (deque)         (min-heap)
+                           Edge weights
+                               │
+            ┌──────────────┬───┴───┬──────────────┐
+            │              │       │              │
+       All equal      Only {0,1}  Arbitrary ≥ 0  Can be negative
+            │              │       │              │
+          BFS          0-1 BFS   Dijkstra     Bellman-Ford
+        O(V + E)       O(V + E)  O((V+E)logV)   O(V × E)
+        (queue)        (deque)   (min-heap)     (relax all edges V-1 times)
 ```
 
-The key insight: **all three algorithms process nodes in non-decreasing order of distance.** They differ only in the data structure that maintains this order.
+The key insight: **BFS, 0-1 BFS, and Dijkstra all process nodes in non-decreasing order of distance.** They differ only in the data structure that maintains this order. Bellman-Ford takes a completely different approach — it doesn't care about processing order, it just keeps relaxing edges until nothing changes.
 
-| Algorithm | Data Structure | Why It Maintains Order |
-|-----------|---------------|----------------------|
+| Algorithm | Data Structure | Why It Works |
+|-----------|---------------|-------------|
 | BFS | Queue (FIFO) | All edges weight 1, so distance = depth = FIFO order |
 | 0-1 BFS | Deque | 0-cost goes front (same level), 1-cost goes back (next level) |
 | Dijkstra | Min-heap | Arbitrary weights need explicit sorting by cost |
+| Bellman-Ford | Plain array | Brute-force: relax every edge V-1 times; works with negatives |
 
 ---
 
@@ -191,67 +201,178 @@ def dijkstra_grid(grid: list[list[int]], start: tuple, end: tuple) -> int:
 
 ---
 
-## 3. 0-1 BFS
+## 3. 0-1 BFS — The Deque Trick (Beginner-Friendly)
 
-### Why Not Just Use Dijkstra?
+### The Simplest Way to Think About It
 
-You can — it's correct. But when edge weights are only 0 or 1, **a deque achieves the same correctness in O(V + E) instead of O((V+E) log V).**
+Forget algorithms for a moment. Imagine you're in a building:
+- Some doors are **open** (cost 0 to walk through)
+- Some doors are **locked** (cost 1 to break open)
 
-The log factor comes from the heap maintaining sorted order among arbitrary weights. With only two possible weights (0 and 1), we can maintain sorted order for free using a deque.
+You want to reach the exit breaking the **fewest doors possible.**
 
-### How the Deque Maintains Sorted Order
+**Regular BFS** assumes every step costs the same — it can't tell open doors from locked ones.  
+**Dijkstra** works but is overkill — it uses a full priority queue for just two possible costs.  
+**0-1 BFS** is the sweet spot — it handles exactly this "free or costs 1" situation perfectly.
 
-**Invariant:** The deque always contains nodes in non-decreasing order of distance.
+### Building Up from Regular BFS
 
-**Why this holds:**
-- At any moment, the deque has nodes at distance `d` (current front) and `d+1` (back region).
-- When we pop a node at distance `d`:
-  - A 0-cost neighbor also has distance `d` → push to **front** (same level)
-  - A 1-cost neighbor has distance `d+1` → push to **back** (next level)
-- The deque never has more than 2 distinct distance levels at any time.
+Let's start from what you already know and build up.
 
-```
-Deque state during processing:
-
-  FRONT                                    BACK
-  ┌──────────────────┬──────────────────────┐
-  │  cost = d nodes  │  cost = d+1 nodes    │
-  └──────────────────┴──────────────────────┘
-       ▲ pop here         push 1-cost here ▲
-       │                                    │
-       └── push 0-cost here (appendleft)
-
-After all cost-d nodes are processed:
-  ┌──────────────────┬──────────────────────┐
-  │  cost = d+1      │  cost = d+2          │
-  └──────────────────┴──────────────────────┘
-  (the old d+1 nodes are now at the front)
-```
-
-This is essentially **BFS with two buckets** — the deque partitions nodes into "current distance" and "next distance."
-
-### 0-1 BFS Trace
+**Regular BFS** uses a queue. It works because every edge costs the same (1), so nodes in the queue are naturally sorted by distance:
 
 ```
-Grid (0 = free, 1 = wall to remove):
-  0  1  0
-  0  0  1
-  1  0  0
-
-Start: (0,0), End: (2,2)
-Goal: minimum walls to remove
+Queue: [dist=1, dist=1, dist=1, dist=2, dist=2, dist=2, dist=3, ...]
+        ^^^^^^^^^^^^^^^^^^^^    ^^^^^^^^^^^^^^^^^^^^    ^^^^^^^^
+        all same cost           all same cost           same cost
 ```
 
-| Step | Pop | dist value | Action | Deque |
-|------|-----|-----------|--------|-------|
-| init | — | (0,0)=0 | seed | [(0,0)] |
-| 1 | (0,0) d=0 | (1,0)=0, (0,1)=1 | (1,0) front, (0,1) back | [(1,0), (0,1)] |
-| 2 | (1,0) d=0 | (1,1)=0, (2,0)=1 | (1,1) front, (2,0) back | [(1,1), (0,1), (2,0)] |
-| 3 | (1,1) d=0 | (1,2)=1, (2,1)=0 | (2,1) front, (1,2) back | [(2,1), (0,1), (2,0), (1,2)] |
-| 4 | (2,1) d=0 | (2,2)=0 | (2,2) front | [(2,2), (0,1), (2,0), (1,2)] |
-| 5 | (2,2) d=0 | **done** | — | — |
+Now what if some edges cost 0? A neighbor reached via a 0-cost edge has the **same distance** as the current node. It should be processed **before** the nodes at the next distance level.
 
-**Answer:** 0 walls removed (path: (0,0)→(1,0)→(1,1)→(2,1)→(2,2), all 0-cost cells)
+```
+Queue: [dist=1, dist=1, dist=2, dist=2]
+                                         
+Now we pop dist=1 node and find a 0-cost neighbor (also dist=1).
+Where does it go?
+
+Queue: [dist=1, dist=2, dist=2]   ← we need dist=1 node HERE, at the front!
+        ^^^
+        new 0-cost neighbor should be here, not at the back
+```
+
+A regular queue only adds to the back. But we need to add to the **front** sometimes. That's a **deque** (double-ended queue).
+
+### The Deque Rule (Just Two Rules)
+
+```
+When you discover a neighbor:
+
+  Edge cost = 0  →  appendleft (front of deque)    "same distance, process soon"
+  Edge cost = 1  →  append     (back of deque)     "next distance, process later"
+```
+
+That's it. That's the entire algorithm. Everything else is identical to BFS.
+
+**Why does this work?** Because the deque always stays sorted:
+
+```
+Step 1: Start with [A₀]                     (subscript = distance)
+
+Step 2: Pop A₀, find 0-cost neighbor B and 1-cost neighbor C
+         B has dist 0 → front
+         C has dist 1 → back
+         Deque: [B₀, C₁]     ← sorted! ✓
+
+Step 3: Pop B₀, find 0-cost neighbor D and 1-cost neighbor E
+         D has dist 0 → front
+         E has dist 1 → back
+         Deque: [D₀, C₁, E₁]  ← sorted! ✓
+
+Step 4: Pop D₀, find 1-cost neighbor F
+         F has dist 1 → back
+         Deque: [C₁, E₁, F₁]  ← sorted! ✓
+
+Step 5: Pop C₁, find 0-cost neighbor G
+         G has dist 1 → front
+         Deque: [G₁, E₁, F₁]  ← sorted! ✓
+```
+
+At any moment, the deque contains **at most 2 distance levels** (current `d` and next `d+1`). 0-cost neighbors stay at level `d` (front), 1-cost neighbors go to level `d+1` (back). When all level-`d` nodes are done, level `d+1` becomes the new front.
+
+### Full Walkthrough with Pictures
+
+```
+Grid (0 = free path, 1 = wall to break):
+
+     col0  col1  col2
+row0:  0     1     0
+row1:  0     0     1
+row2:  1     0     0
+
+Start: (0,0)    End: (2,2)
+Question: What's the minimum number of walls to break?
+```
+
+**Initial state:**
+
+```
+dist:    0    ∞    ∞         Deque: [(0,0)]
+         ∞    ∞    ∞
+         ∞    ∞    ∞
+```
+
+**Step 1:** Pop (0,0) with dist=0. Neighbors:
+- (1,0): grid=0, new_cost = 0+0 = 0 → **front**
+- (0,1): grid=1, new_cost = 0+1 = 1 → **back**
+
+```
+dist:    0    1    ∞         Deque: [(1,0), (0,1)]
+         0    ∞    ∞                  ↑front   ↑back
+         ∞    ∞    ∞
+```
+
+**Step 2:** Pop (1,0) with dist=0. Neighbors:
+- (0,0): already dist=0, skip (0 < 0 is false)
+- (2,0): grid=1, new_cost = 0+1 = 1 → **back**
+- (1,1): grid=0, new_cost = 0+0 = 0 → **front**
+
+```
+dist:    0    1    ∞         Deque: [(1,1), (0,1), (2,0)]
+         0    0    ∞
+         ∞    ∞    ∞
+```
+
+**Step 3:** Pop (1,1) with dist=0. Neighbors:
+- (0,1): already dist=1, new_cost=0+1=1, not better, skip
+- (2,1): grid=0, new_cost = 0+0 = 0 → **front**
+- (1,0): already dist=0, skip
+- (1,2): grid=1, new_cost = 0+1 = 1 → **back**
+
+```
+dist:    0    1    ∞         Deque: [(2,1), (0,1), (2,0), (1,2)]
+         0    0    ∞
+         ∞    0    ∞
+```
+
+**Step 4:** Pop (2,1) with dist=0. Neighbors:
+- (1,1): already 0, skip
+- (2,0): new_cost=0+1=1, same as current 1, skip (not strictly less)
+- (2,2): grid=0, new_cost = 0+0 = 0 → **front**
+
+```
+dist:    0    1    ∞         Deque: [(2,2), (0,1), (2,0), (1,2)]
+         0    0    ∞
+         ∞    0    0    ← destination reached with cost 0!
+```
+
+**Step 5:** Pop (2,2) with dist=0. This is the destination! **Answer: 0 walls broken.**
+
+```
+The path: (0,0) → (1,0) → (1,1) → (2,1) → (2,2)
+All cells on this path are 0, so no walls needed!
+
+     0  1  0
+     ↓
+     0→ 0  1
+        ↓
+     1  0→ 0  ← exit
+```
+
+### When to Use 0-1 BFS — Cheat Sheet
+
+**Trigger words in the problem:**
+- "minimum number of **removals/changes/flips**"
+- "free to move one way, costs 1 to go another way"
+- Grid with exactly **two cell types** (0 and 1, or arrows and redirections)
+- Any shortest path where edges cost either 0 or 1
+
+**Real examples:**
+| Problem says... | Edge cost 0 | Edge cost 1 |
+|---|---|---|
+| "Remove obstacles" | Move through empty cell | Remove an obstacle |
+| "Follow arrows" | Move in arrow direction | Change arrow direction |
+| "Safe walk" | Step on safe cell (0) | Step on dangerous cell (1) |
+| "Flip switches" | Walk through open door | Flip a switch |
 
 ### 0-1 BFS Implementation
 
@@ -275,27 +396,300 @@ def zero_one_bfs(grid: list[list[int]], start: tuple, end: tuple) -> int:
                 if new_cost < dist[nr][nc]:
                     dist[nr][nc] = new_cost
                     if grid[nr][nc] == 0:
-                        dq.appendleft((nr, nc))
+                        dq.appendleft((nr, nc))   # free move → front
                     else:
-                        dq.append((nr, nc))
+                        dq.append((nr, nc))        # costly move → back
 
     return dist[end[0]][end[1]]
 ```
 
-**Important subtle point:** Unlike Dijkstra, we do NOT need the `if cost > dist[r][c]: continue` guard here because the deque processes nodes in order. However, adding it doesn't hurt and can be a minor optimization:
+**Line-by-line for beginners:**
 
 ```python
-while dq:
-    r, c = dq.popleft()
-    if dist[r][c] < current_stored_cost:   # optional optimization
-        continue
+dist[start[0]][start[1]] = grid[start[0]][start[1]]
+# Start cell might cost 0 or 1. Include that cost.
+
+new_cost = dist[r][c] + grid[nr][nc]
+# Total cost to reach neighbor = cost to reach current + neighbor's cost
+
+if new_cost < dist[nr][nc]:
+# Only update if we found a CHEAPER path to this neighbor
+
+if grid[nr][nc] == 0:
+    dq.appendleft((nr, nc))   # Cost 0: same priority level → front
+else:
+    dq.append((nr, nc))       # Cost 1: next priority level → back
 ```
 
-Some competitive programmers include it anyway for safety. Both versions are correct.
+### 0-1 BFS vs BFS vs Dijkstra — Side by Side
+
+```python
+# ── Regular BFS (all edges cost 1) ──
+queue = deque([start])
+while queue:
+    node = queue.popleft()
+    for neighbor in get_neighbors(node):
+        if dist[neighbor] > dist[node] + 1:
+            dist[neighbor] = dist[node] + 1
+            queue.append(neighbor)              # always back
+
+# ── 0-1 BFS (edges cost 0 or 1) ──
+dq = deque([start])
+while dq:
+    node = dq.popleft()
+    for neighbor, edge_cost in get_neighbors(node):   # edge_cost is 0 or 1
+        if dist[neighbor] > dist[node] + edge_cost:
+            dist[neighbor] = dist[node] + edge_cost
+            if edge_cost == 0:
+                dq.appendleft(neighbor)         # ← only difference: front
+            else:
+                dq.append(neighbor)             # ← back (same as BFS)
+
+# ── Dijkstra (edges cost anything ≥ 0) ──
+heap = [(0, start)]
+while heap:
+    cost, node = heapq.heappop(heap)            # ← always pops minimum
+    for neighbor, edge_cost in get_neighbors(node):
+        if dist[neighbor] > cost + edge_cost:
+            dist[neighbor] = cost + edge_cost
+            heapq.heappush(heap, (dist[neighbor], neighbor))
+```
+
+Notice: **0-1 BFS is literally BFS with one extra if-else.** That's why it's so easy once you get the intuition.
 
 ---
 
-## 4. Decision Framework
+## 4. Bellman-Ford Algorithm
+
+### Why Dijkstra Breaks with Negative Edges
+
+Dijkstra's correctness relies on: "once I pop a node, its distance is final." This works because adding more edges can only increase cost (all edges ≥ 0).
+
+With negative edges, this breaks completely:
+
+```
+Graph:
+  A ──1──▶ B ──(-5)──▶ C
+  │                     ▲
+  └────────3───────────▶
+
+Dijkstra pops B (cost 1), then C via B (cost 1 + (-5) = -4).
+But it already finalized A→C = 3 in the heap.
+
+Dijkstra says: shortest to C = -4  ← happens to be right here
+But in general, Dijkstra might finalize C = 3 BEFORE discovering the -4 path.
+```
+
+**The deeper issue:** Dijkstra pops node C with cost 3 and marks it done. It never reconsiders C even though B→C gives cost -4. The greedy assumption ("popped = final") is violated.
+
+### The Bellman-Ford Idea
+
+**Forget being clever. Just brute-force it.**
+
+The key insight: the shortest path from source to any node uses **at most V-1 edges** (V = number of vertices). If it used V or more edges, it would visit some node twice, meaning there's a cycle — and if the cycle is negative, the shortest path is -infinity.
+
+So the algorithm is dead simple:
+
+```
+Repeat V-1 times:
+    For every edge (u, v, weight) in the graph:
+        If dist[u] + weight < dist[v]:
+            dist[v] = dist[u] + weight
+```
+
+**That's it.** No heap, no visited set, no clever data structure. Just keep relaxing edges until convergence.
+
+**Why V-1 iterations?**
+
+```
+After iteration 1:  shortest paths using ≤ 1 edge are correct
+After iteration 2:  shortest paths using ≤ 2 edges are correct
+...
+After iteration k:  shortest paths using ≤ k edges are correct
+After iteration V-1: ALL shortest paths are correct (max V-1 edges in any simple path)
+```
+
+Think of it like a **wave spreading one edge at a time:**
+
+```
+Iteration 1: Source's direct neighbors get correct distances
+Iteration 2: Neighbors of neighbors get correct distances
+...
+Iteration V-1: The farthest reachable node gets its correct distance
+```
+
+### Bellman-Ford Trace
+
+```
+Graph:
+  A ──4──▶ B ──(-2)──▶ C
+  │         ▲           │
+  │         3           5
+  │         │           │
+  └──2──▶ D ───(-1)───▶ E
+
+Edges: (A,B,4), (A,D,2), (B,C,-2), (D,B,3), (D,E,-1), (C,E,5)
+Source: A
+```
+
+| Node | Init | After iter 1 | After iter 2 | After iter 3 | After iter 4 |
+|------|------|-------------|-------------|-------------|-------------|
+| A | 0 | 0 | 0 | 0 | 0 |
+| B | ∞ | 4 | 4→**5**? no, 4<5 → **4** | 4 | 4 |
+| C | ∞ | ∞→**2** (via B) | **2** | 2 | 2 |
+| D | ∞ | **2** (via A) | 2 | 2 | 2 |
+| E | ∞ | ∞ | **1** (via D, 2+(-1)) | 1 | 1 |
+
+Wait, let me redo more carefully. In each iteration we scan ALL edges:
+
+**Init:** dist = {A:0, B:∞, C:∞, D:∞, E:∞}
+
+**Iteration 1** (scan all 6 edges):
+- (A,B,4): dist[A]+4 = 4 < ∞ → dist[B] = 4
+- (A,D,2): dist[A]+2 = 2 < ∞ → dist[D] = 2
+- (B,C,-2): dist[B]+(-2) = 2 < ∞ → dist[C] = 2
+- (D,B,3): dist[D]+3 = 5 > 4 → no change
+- (D,E,-1): dist[D]+(-1) = 1 < ∞ → dist[E] = 1
+- (C,E,5): dist[C]+5 = 7 > 1 → no change
+
+dist = {A:0, B:4, C:2, D:2, E:1}
+
+**Iteration 2** (scan all 6 edges again):
+- All edges: no improvements found. **Early termination!**
+
+**Answer:** A→B=4, A→C=2 (via A→B→C), A→D=2, A→E=1 (via A→D→E)
+
+### Detecting Negative Cycles
+
+After V-1 iterations, do **one more pass** over all edges. If any distance can still be reduced, there's a negative cycle (a loop where total weight < 0, meaning you can decrease cost infinitely).
+
+```
+After V-1 iterations, do iteration V:
+    For every edge (u, v, weight):
+        If dist[u] + weight < dist[v]:
+            → NEGATIVE CYCLE DETECTED!
+```
+
+**Why?** After V-1 iterations, all shortest paths are finalized. If an edge can still relax, it means going around a cycle one more time reduces cost → that cycle has negative total weight.
+
+```
+Example negative cycle:
+  A ──1──▶ B ──(-3)──▶ C ──1──▶ A
+  Total cycle weight: 1 + (-3) + 1 = -1
+
+Every time you go around: cost decreases by 1
+Go around 1000 times: cost decreases by 1000
+Shortest path = -∞ (undefined)
+```
+
+### Bellman-Ford Implementation
+
+```python
+def bellman_ford(n: int, edges: list[tuple], source: int) -> tuple[list, bool]:
+    """
+    n: number of nodes (0 to n-1)
+    edges: list of (u, v, weight)
+    Returns: (dist array, has_negative_cycle)
+    """
+    dist = [float('inf')] * n
+    dist[source] = 0
+
+    # Relax all edges V-1 times
+    for i in range(n - 1):
+        updated = False
+        for u, v, w in edges:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                updated = True
+        if not updated:       # early exit — no changes means we're done
+            break
+
+    # Check for negative cycles (one more pass)
+    for u, v, w in edges:
+        if dist[u] != float('inf') and dist[u] + w < dist[v]:
+            return dist, True    # negative cycle exists
+
+    return dist, False
+```
+
+**The `if not updated: break` optimization:** If a full pass over all edges makes no changes, all distances are final. This often reduces the number of iterations in practice.
+
+### SPFA — The Optimized Bellman-Ford
+
+**Shortest Path Faster Algorithm (SPFA)** is Bellman-Ford with a queue optimization. Instead of scanning ALL edges every iteration, only scan edges from nodes whose distances recently changed.
+
+```python
+from collections import deque
+
+def spfa(n: int, graph: dict, source: int) -> tuple[list, bool]:
+    """
+    graph: adjacency list {node: [(neighbor, weight), ...]}
+    Returns: (dist array, has_negative_cycle)
+    """
+    dist = [float('inf')] * n
+    dist[source] = 0
+    in_queue = [False] * n
+    count = [0] * n              # times each node entered queue
+
+    queue = deque([source])
+    in_queue[source] = True
+
+    while queue:
+        u = queue.popleft()
+        in_queue[u] = False
+        for v, w in graph[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                if not in_queue[v]:
+                    queue.append(v)
+                    in_queue[v] = True
+                    count[v] += 1
+                    if count[v] >= n:     # entered queue ≥ V times → negative cycle
+                        return dist, True
+
+    return dist, False
+```
+
+**SPFA vs Bellman-Ford:**
+- Average case: SPFA is much faster (often O(E) in practice)
+- Worst case: both are O(V×E) — SPFA can be forced into worst case by adversarial graphs
+- LeetCode: SPFA usually passes, but some problems are designed to break it
+
+### When to Use Bellman-Ford
+
+| Situation | Use |
+|---|---|
+| Non-negative weights | Dijkstra (faster) |
+| Negative weights, no negative cycles | Bellman-Ford or SPFA |
+| Need to detect negative cycles | Bellman-Ford (V-th iteration check) |
+| Limited number of edges/stops (like "at most K stops") | Bellman-Ford with K iterations instead of V-1 |
+| Distributed system (each node only knows its neighbors) | Bellman-Ford (no global view needed) |
+
+### Bellman-Ford for "At Most K Edges" Problems
+
+A special trick: if you only run **K iterations** instead of V-1, you get shortest paths using **at most K edges**. This is perfect for "cheapest flight with at most K stops."
+
+```python
+def cheapest_flight_k_stops(n, flights, src, dst, k):
+    """Shortest path from src to dst using at most k+1 edges (k stops)."""
+    dist = [float('inf')] * n
+    dist[src] = 0
+
+    for _ in range(k + 1):                        # k stops = k+1 edges
+        new_dist = dist[:]                         # copy! important!
+        for u, v, w in flights:
+            if dist[u] + w < new_dist[v]:
+                new_dist[v] = dist[u] + w
+        dist = new_dist
+
+    return dist[dst] if dist[dst] != float('inf') else -1
+```
+
+**Critical: `new_dist = dist[:]`** — we must use the previous iteration's values, otherwise within a single iteration we might relax a chain of edges (using more edges than allowed).
+
+---
+
+## 5. Decision Framework
 
 ```
 Q1: Are all edge weights equal?
@@ -315,8 +709,17 @@ Q1: Are all edge weights equal?
         ├── YES → Dijkstra (min-heap), O((V+E) log V)
         │         Examples: network delay, minimum effort path
         │
-        └── NO → Bellman-Ford, O(VE)
-                  Examples: cheapest flights with negative rebates
+        └── NO →
+            Q4: Negative edges present?
+            │
+            ├── Need negative cycle detection → Bellman-Ford, O(VE)
+            │   Examples: arbitrage detection
+            │
+            ├── "At most K edges/stops" → Bellman-Ford with K iterations
+            │   Examples: cheapest flights with K stops
+            │
+            └── General negative weights → SPFA (optimized Bellman-Ford)
+                Examples: shortest path with toll rebates
 ```
 
 ### Recognizing 0-1 BFS Problems
@@ -334,9 +737,16 @@ Look for these patterns:
 - "Maximum probability path" (negate log for Dijkstra)
 - Any shortest path where BFS/0-1 BFS doesn't apply
 
+### Recognizing Bellman-Ford Problems
+
+- Problem has **negative edge weights** (discounts, rebates, refunds)
+- **"At most K stops/edges"** constraint (Bellman-Ford with K iterations)
+- Need to **detect negative cycles** (arbitrage, infinite discount loops)
+- Dijkstra gives wrong answers (hint: negative edges exist)
+
 ---
 
-## 5. Bottleneck Shortest Path
+## 6. Bottleneck Shortest Path
 
 Sometimes you don't want to minimize the **sum** — you want to:
 - **Maximize the minimum** edge on the path (safest path)
@@ -391,7 +801,7 @@ def minimum_effort_path(heights: list[list[int]]) -> int:
 
 ---
 
-## 6. Dijkstra with State
+## 7. Dijkstra with State
 
 When the cost depends on more than just position — e.g., remaining fuel, keys held, turns taken — extend the state.
 
@@ -447,7 +857,7 @@ def find_cheapest_price(
 
 ---
 
-## 7. Case Study: LC 3286 — Find a Safe Walk Through a Grid
+## 8. Case Study: LC 3286 — Find a Safe Walk Through a Grid
 
 **Problem:** Grid of 0s and 1s. Start at (0,0), reach (m-1,n-1). Each cell costs `grid[i][j]` health. You need `health > 0` at all times. Can you make it?
 
@@ -529,7 +939,7 @@ def findSafeWalk(self, grid, health):
 
 ---
 
-## 8. Common Bugs & Pitfalls
+## 9. Common Bugs & Pitfalls
 
 ### Bug 1: Marking visited on push, not on pop
 
@@ -628,7 +1038,7 @@ value = -neg_val
 
 ---
 
-## 9. Practice Problems
+## 10. Practice Problems
 
 ### Tier 1: Standard BFS (Warm-Up)
 
@@ -677,7 +1087,17 @@ value = -neg_val
 | 847 | [Shortest Path Visiting All Nodes](https://leetcode.com/problems/shortest-path-visiting-all-nodes/) | Hard | State = (node, visited_bitmask) |
 | 882 | [Reachable Nodes In Subdivided Graph](https://leetcode.com/problems/reachable-nodes-in-subdivided-graph/) | Hard | Dijkstra, edges have subdivided nodes |
 
-### Tier 6: Advanced / Combo
+### Tier 6: Bellman-Ford / Negative Weights / K-Edge Constraints
+
+| # | Problem | Difficulty | Hint |
+|---|---------|------------|------|
+| 787 | [Cheapest Flights Within K Stops](https://leetcode.com/problems/cheapest-flights-within-k-stops/) | Medium | Bellman-Ford with K+1 iterations (also solvable with Dijkstra+state) |
+| 743 | [Network Delay Time](https://leetcode.com/problems/network-delay-time/) | Medium | Can be solved with Bellman-Ford as practice (Dijkstra is better here) |
+| 1334 | [Find the City With the Smallest Number of Neighbors at a Threshold Distance](https://leetcode.com/problems/find-the-city-with-the-smallest-number-of-neighbors-at-a-threshold-distance/) | Medium | Bellman-Ford from each city, or Floyd-Warshall |
+| 1865 | [Finding Pairs With a Certain Sum](https://leetcode.com/problems/finding-pairs-with-a-certain-sum/) | Medium | Not shortest path but uses similar relaxation logic |
+| 2093 | [Minimum Cost to Reach City With Discounts](https://leetcode.com/problems/minimum-cost-to-reach-city-with-discounts/) | Medium | Bellman-Ford/Dijkstra with state (node, discounts_left) |
+
+### Tier 7: Advanced / Combo
 
 | # | Problem | Difficulty | Hint |
 |---|---------|------------|------|
@@ -689,14 +1109,15 @@ value = -neg_val
 
 ---
 
-## 10. Mental Checklist Before Coding
+## 11. Mental Checklist Before Coding
 
 ```
 □ What are the edge weights?
-  → All 1?           Use BFS
-  → Only 0 or 1?     Use 0-1 BFS
-  → Variable ≥ 0?    Use Dijkstra
-  → Can be negative?  Use Bellman-Ford
+  → All 1?            Use BFS
+  → Only 0 or 1?      Use 0-1 BFS
+  → Variable ≥ 0?     Use Dijkstra
+  → Can be negative?   Use Bellman-Ford / SPFA
+  → "At most K edges"? Use Bellman-Ford with K iterations
 
 □ What am I optimizing?
   → Minimize total cost?    Standard relaxation: new = old + edge
@@ -714,6 +1135,14 @@ value = -neg_val
 
 □ Is the problem asking for reachability, not shortest path?
   → Consider if a simple BFS/DFS suffices before pulling out Dijkstra
+
+□ Could there be negative cycles?
+  → Run Bellman-Ford V-th iteration check
+  → If negative cycle exists, shortest path is undefined (-∞)
+
+□ Bellman-Ford: am I using previous iteration's values?
+  → For K-edge problems, copy dist[] before each iteration
+  → Without copy, a single iteration can relax multi-edge chains
 ```
 
 ---
