@@ -1409,3 +1409,2314 @@ The application service is the **traffic controller**. It does not know the rule
 | How many places to update when a rule changes? | All services that copied it | One method in the entity |
 | Unit test speed | Needs DB + service setup | Instantiate the class, done |
 | Domain complexity | Hidden in service code | Visible and named in the entity |
+
+---
+
+## 13. Domain Services
+
+### The Problem: Business Logic That Doesn't Belong to Any Single Entity
+
+Sometimes you have a business rule that requires **multiple aggregates** to compute, but it doesn't naturally belong inside either one.
+
+**Example:** "Calculate the final price for a customer's order based on the customer's loyalty tier, the product's category discount, and any active promotions."
+
+- `Order` shouldn't know about `Customer` tiers — that's not its responsibility.
+- `Customer` shouldn't know about pricing rules — that's not its data.
+- `Product` shouldn't know about customer tiers either.
+
+This is where a **Domain Service** lives.
+
+### What Is a Domain Service?
+
+A Domain Service is:
+- **Pure domain logic** (lives in `domain/`, not `application/`)
+- **Stateless** — no instance data, no side effects
+- **Coordinates rules across multiple aggregates** without owning any of them
+- **Named after the business concept** it represents (not "Manager" or "Helper")
+
+### What a Domain Service Is NOT
+
+| Domain Service | Application Service |
+|---|---|
+| Lives in `domain/` | Lives in `application/` |
+| Contains **business rules** | Contains **orchestration** (load, call, save) |
+| No I/O (no DB, no HTTP) | Calls repositories, publishes events |
+| Other domain objects can call it | Only the application layer calls it |
+
+### Folder Structure
+
+```
+domain/
+    pricing/
+        __init__.py
+        pricing_service.py         ← Domain Service
+        discount_policy.py         ← Strategy used by pricing service
+        value_objects.py           ← Discount, PriceBreakdown
+```
+
+### Full Implementation — `domain/pricing/pricing_service.py`
+
+```python
+# domain/pricing/pricing_service.py
+from __future__ import annotations
+from dataclasses import dataclass
+from domain.pricing.value_objects import Discount, PriceBreakdown
+from domain.order.value_objects import Money
+from domain.customer.customer import Customer
+from domain.product.product import Product
+
+
+@dataclass(frozen=True)
+class PricingService:
+    """Calculates final price using cross-aggregate business rules.
+
+    This is a Domain Service because:
+    1. The pricing rule spans Customer, Product, and promotion data.
+    2. Neither Customer nor Product should own this logic.
+    3. It's pure computation — no I/O, no side effects.
+    """
+
+    def calculate_line_price(
+        self,
+        product: Product,
+        customer: Customer,
+        quantity: int,
+    ) -> PriceBreakdown:
+        """Apply tier discount + category discount + volume discount."""
+        base_price = product.unit_price * quantity
+
+        tier_discount = self._tier_discount(customer.tier)
+        category_discount = self._category_discount(product.category)
+        volume_discount = self._volume_discount(quantity)
+
+        # Business rule: discounts stack multiplicatively, max total 30%
+        combined = min(
+            tier_discount.rate + category_discount.rate + volume_discount.rate,
+            0.30,
+        )
+
+        final_discount = Discount(rate=combined, reason="combined")
+        final_price = base_price.subtract(base_price.multiply(combined))
+
+        return PriceBreakdown(
+            base_price=base_price,
+            final_price=final_price,
+            discounts_applied=[tier_discount, category_discount, volume_discount],
+            effective_discount=final_discount,
+        )
+
+    def _tier_discount(self, tier: str) -> Discount:
+        rates = {"STANDARD": 0.0, "PREMIUM": 0.05, "VIP": 0.10}
+        rate = rates.get(tier, 0.0)
+        return Discount(rate=rate, reason=f"Tier: {tier}")
+
+    def _category_discount(self, category: str) -> Discount:
+        rates = {"ELECTRONICS": 0.02, "CLOTHING": 0.05, "FOOD": 0.0}
+        rate = rates.get(category, 0.0)
+        return Discount(rate=rate, reason=f"Category: {category}")
+
+    def _volume_discount(self, quantity: int) -> Discount:
+        if quantity >= 100:
+            return Discount(rate=0.10, reason="Volume: 100+")
+        elif quantity >= 50:
+            return Discount(rate=0.05, reason="Volume: 50+")
+        return Discount(rate=0.0, reason="Volume: none")
+```
+
+### Value Objects for Pricing — `domain/pricing/value_objects.py`
+
+```python
+# domain/pricing/value_objects.py
+from __future__ import annotations
+from dataclasses import dataclass
+from domain.order.value_objects import Money
+
+
+@dataclass(frozen=True)
+class Discount:
+    rate: float       # 0.0 to 1.0
+    reason: str
+
+
+@dataclass(frozen=True)
+class PriceBreakdown:
+    base_price: Money
+    final_price: Money
+    discounts_applied: list[Discount]
+    effective_discount: Discount
+```
+
+### How the Application Service Uses It
+
+```python
+# application/order/place_order.py  (relevant excerpt)
+from domain.pricing.pricing_service import PricingService
+
+class PlaceOrderHandler:
+    def __init__(
+        self,
+        order_repo: IOrderRepository,
+        customer_repo: ICustomerRepository,
+        product_repo: IProductRepository,
+        pricing_service: PricingService,    # ← injected domain service
+    ) -> None:
+        self._order_repo = order_repo
+        self._customer_repo = customer_repo
+        self._product_repo = product_repo
+        self._pricing = pricing_service
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        customer = self._customer_repo.get(command.customer_id)
+        order = Order.place(customer_id=customer.id, currency=command.currency)
+
+        for line in command.lines:
+            product = self._product_repo.get(line.product_id)
+
+            # Domain service calculates price — orchestrator just passes data through
+            breakdown = self._pricing.calculate_line_price(
+                product=product,
+                customer=customer,
+                quantity=line.quantity,
+            )
+
+            order.add_line(
+                product_id=product.id,
+                quantity=line.quantity,
+                unit_price=breakdown.final_price,
+            )
+
+        order.confirm()
+        self._order_repo.save(order)
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### When to Use a Domain Service vs an Entity Method
+
+| Situation | Use |
+|---|---|
+| Rule uses data from **one** aggregate only | Entity/Aggregate method |
+| Rule spans **multiple** aggregates | Domain Service |
+| Rule is a policy that might vary (discounts, taxes, shipping) | Domain Service + Strategy |
+| You're tempted to inject one aggregate into another | Domain Service instead |
+
+### Key Rule: Domain Services Have Zero I/O
+
+```python
+# WRONG — domain service doing I/O
+class PricingService:
+    def __init__(self, db):
+        self.db = db
+
+    def calculate(self, order_id):
+        order = self.db.get(order_id)    # ← NO. Domain services don't fetch.
+        ...
+
+# RIGHT — domain service receives already-loaded data
+class PricingService:
+    def calculate_line_price(self, product: Product, customer: Customer, quantity: int):
+        ...  # pure computation only
+```
+
+The **application service** does the loading. The **domain service** does the computation.
+
+---
+
+## 14. Specifications — Reusable Business Predicates
+
+### The Problem: Scattered Business Conditions
+
+You keep writing the same boolean checks across multiple services:
+
+```python
+# scattered across the codebase
+if order.status == OrderStatus.DELIVERED and order.total.amount > 100:
+    ...  # eligible for loyalty points
+
+if order.status == OrderStatus.DELIVERED and order.total.amount > 100:
+    ...  # eligible for review request email
+
+if order.total.amount > 500 and customer.tier == "VIP":
+    ...  # eligible for VIP gift
+```
+
+The business rule "eligible for loyalty points" is a **named concept** that should exist as one thing, tested once, reused everywhere.
+
+### What Is a Specification?
+
+A Specification encapsulates a **business predicate** (a yes/no question) into a reusable, composable, testable object.
+
+```
+"Is this order eligible for a refund?"  →  RefundEligibleSpec
+"Is this customer a high-value buyer?"  →  HighValueCustomerSpec
+"Can this order be expedited?"          →  ExpediteEligibleSpec
+```
+
+### Folder Structure
+
+```
+domain/
+    order/
+        specifications.py          ← Order-related specs
+    customer/
+        specifications.py          ← Customer-related specs
+    shared/
+        specification.py           ← Base Specification protocol
+```
+
+### Base Specification — `domain/shared/specification.py`
+
+```python
+# domain/shared/specification.py
+from __future__ import annotations
+from typing import Protocol, TypeVar, Generic
+
+T = TypeVar("T")
+
+
+class Specification(Protocol[T]):
+    """A business predicate — answers a yes/no question about a domain object."""
+
+    def is_satisfied_by(self, candidate: T) -> bool:
+        ...
+
+
+class AndSpec(Generic[T]):
+    """Composite: both specs must be satisfied."""
+
+    def __init__(self, left: Specification[T], right: Specification[T]) -> None:
+        self._left = left
+        self._right = right
+
+    def is_satisfied_by(self, candidate: T) -> bool:
+        return self._left.is_satisfied_by(candidate) and self._right.is_satisfied_by(candidate)
+
+
+class OrSpec(Generic[T]):
+    """Composite: at least one spec must be satisfied."""
+
+    def __init__(self, left: Specification[T], right: Specification[T]) -> None:
+        self._left = left
+        self._right = right
+
+    def is_satisfied_by(self, candidate: T) -> bool:
+        return self._left.is_satisfied_by(candidate) or self._right.is_satisfied_by(candidate)
+
+
+class NotSpec(Generic[T]):
+    """Composite: spec must NOT be satisfied."""
+
+    def __init__(self, spec: Specification[T]) -> None:
+        self._spec = spec
+
+    def is_satisfied_by(self, candidate: T) -> bool:
+        return not self._spec.is_satisfied_by(candidate)
+```
+
+### Order Specifications — `domain/order/specifications.py`
+
+```python
+# domain/order/specifications.py
+from domain.order.order import Order
+from domain.order.value_objects import OrderStatus, Money
+from datetime import datetime, timedelta
+
+
+class RefundEligibleSpec:
+    """An order is refund-eligible if delivered within 30 days and not already refunded."""
+
+    def is_satisfied_by(self, order: Order) -> bool:
+        if order.status != OrderStatus.DELIVERED:
+            return False
+        if order.refunded:
+            return False
+        days_since_delivery = (datetime.utcnow() - order.delivered_at).days
+        return days_since_delivery <= 30
+
+
+class HighValueOrderSpec:
+    """An order is high-value if total exceeds $500."""
+
+    def __init__(self, threshold: Money = Money(amount=500_00, currency="USD")) -> None:
+        self._threshold = threshold
+
+    def is_satisfied_by(self, order: Order) -> bool:
+        return order.total.amount >= self._threshold.amount
+
+
+class LoyaltyPointsEligibleSpec:
+    """An order qualifies for loyalty points if delivered and total > $100."""
+
+    def is_satisfied_by(self, order: Order) -> bool:
+        return (
+            order.status == OrderStatus.DELIVERED
+            and order.total.amount > 100_00
+        )
+```
+
+### Composing Specifications
+
+```python
+# Combine specs with AND / OR / NOT
+high_value = HighValueOrderSpec()
+refundable = RefundEligibleSpec()
+
+# "High-value AND refundable" — used for priority refund queue
+priority_refund_spec = AndSpec(high_value, refundable)
+
+# Check it
+if priority_refund_spec.is_satisfied_by(order):
+    ...  # route to priority refund team
+```
+
+### Using Specifications in Application Services
+
+```python
+# application/order/request_refund.py
+from domain.order.specifications import RefundEligibleSpec
+
+class RequestRefundHandler:
+    def __init__(self, order_repo: IOrderRepository) -> None:
+        self._order_repo = order_repo
+        self._refund_spec = RefundEligibleSpec()
+
+    def handle(self, command: RequestRefundCommand) -> None:
+        order = self._order_repo.get(command.order_id)
+
+        if not self._refund_spec.is_satisfied_by(order):
+            raise ValueError("Order is not eligible for refund")
+
+        order.initiate_refund(reason=command.reason)
+        self._order_repo.save(order)
+```
+
+### Why Not Just a Method on the Entity?
+
+| Approach | When to Use |
+|---|---|
+| Entity method (`order.can_refund()`) | Simple, single rule that only this entity uses |
+| Specification object | Rule is **reused** across services, **composed** with other rules, or **configured** with parameters |
+
+Specifications shine when you need to: filter collections, compose rules dynamically, pass predicates as arguments, or test complex conditions in isolation.
+
+---
+
+## 15. Anti-Corruption Layer (ACL)
+
+### The Problem: External Systems Leak Into Your Domain
+
+Your e-commerce system integrates with a payment gateway (Stripe), a shipping provider (FedEx), and a legacy inventory system. Each has its own data model, naming conventions, and quirks.
+
+Without an ACL:
+
+```python
+# WRONG — domain depends directly on Stripe's model
+from stripe import PaymentIntent
+
+class Order:
+    def mark_paid(self, stripe_intent: PaymentIntent):  # ← Stripe model in domain!
+        self.status = OrderStatus.PAID
+        self.payment_id = stripe_intent.id
+        self.amount_paid = stripe_intent.amount_received / 100  # ← Stripe uses cents!
+```
+
+Now your domain is **coupled to Stripe**. If Stripe changes their API, your domain breaks. If you switch to PayPal, you rewrite your domain.
+
+### What Is an Anti-Corruption Layer?
+
+An ACL is a **translation boundary** that converts external models into your domain's language — and vice versa. It prevents foreign concepts from corrupting your clean domain model.
+
+```
+External World (Stripe, FedEx, Legacy DB)
+       │
+       ▼
+┌──────────────────────────────┐
+│  Anti-Corruption Layer       │  ← Translates foreign → domain language
+│  (infrastructure/acl/)       │
+└──────────────┬───────────────┘
+               │  passes domain Value Objects
+               ▼
+┌──────────────────────────────┐
+│  Application / Domain        │  ← Knows nothing about Stripe, FedEx, etc.
+└──────────────────────────────┘
+```
+
+### Folder Structure
+
+```
+infrastructure/
+    acl/
+        __init__.py
+        payment_gateway.py          ← Translates Stripe → domain PaymentConfirmation
+        shipping_provider.py        ← Translates FedEx → domain ShipmentInfo
+        legacy_inventory_adapter.py ← Translates legacy API → domain ProductStock
+```
+
+### Domain Defines Its Own Interface
+
+```python
+# domain/payment/gateway.py
+from __future__ import annotations
+from typing import Protocol
+from domain.payment.value_objects import PaymentConfirmation, PaymentRequest
+
+
+class IPaymentGateway(Protocol):
+    """What the domain expects from any payment provider.
+    Defined in domain terms — no Stripe, no PayPal, no external leakage.
+    """
+
+    def charge(self, request: PaymentRequest) -> PaymentConfirmation:
+        ...
+
+    def refund(self, payment_id: str, amount_cents: int) -> PaymentConfirmation:
+        ...
+```
+
+### Domain Value Objects — `domain/payment/value_objects.py`
+
+```python
+# domain/payment/value_objects.py
+from __future__ import annotations
+from dataclasses import dataclass
+from enum import Enum
+
+
+class PaymentStatus(Enum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    PENDING = "pending"
+
+
+@dataclass(frozen=True)
+class PaymentRequest:
+    order_id: str
+    amount_cents: int
+    currency: str
+    customer_email: str
+
+
+@dataclass(frozen=True)
+class PaymentConfirmation:
+    """Domain's view of a completed payment — no Stripe-specific fields."""
+    payment_id: str
+    status: PaymentStatus
+    amount_cents: int
+    currency: str
+    timestamp: str
+```
+
+### ACL Implementation — `infrastructure/acl/payment_gateway.py`
+
+```python
+# infrastructure/acl/payment_gateway.py
+import stripe
+from domain.payment.gateway import IPaymentGateway
+from domain.payment.value_objects import (
+    PaymentConfirmation,
+    PaymentRequest,
+    PaymentStatus,
+)
+
+
+class StripePaymentGateway:
+    """ACL: Translates between Stripe's model and our domain's PaymentConfirmation.
+
+    The domain never sees stripe.PaymentIntent, stripe.Charge, or any Stripe-specific
+    concepts. This class is the ONLY place where 'import stripe' appears.
+    """
+
+    def __init__(self, api_key: str) -> None:
+        stripe.api_key = api_key
+
+    def charge(self, request: PaymentRequest) -> PaymentConfirmation:
+        # Call Stripe's API — external model
+        intent = stripe.PaymentIntent.create(
+            amount=request.amount_cents,
+            currency=request.currency,
+            receipt_email=request.customer_email,
+            metadata={"order_id": request.order_id},
+        )
+
+        # Translate Stripe's response → domain's value object
+        return self._to_domain(intent)
+
+    def refund(self, payment_id: str, amount_cents: int) -> PaymentConfirmation:
+        refund = stripe.Refund.create(
+            payment_intent=payment_id,
+            amount=amount_cents,
+        )
+        return PaymentConfirmation(
+            payment_id=refund.payment_intent,
+            status=PaymentStatus.SUCCEEDED if refund.status == "succeeded" else PaymentStatus.FAILED,
+            amount_cents=refund.amount,
+            currency=refund.currency,
+            timestamp=str(refund.created),
+        )
+
+    def _to_domain(self, intent: stripe.PaymentIntent) -> PaymentConfirmation:
+        """The translation point: Stripe model → domain model."""
+        status_map = {
+            "succeeded": PaymentStatus.SUCCEEDED,
+            "requires_payment_method": PaymentStatus.FAILED,
+            "processing": PaymentStatus.PENDING,
+        }
+        return PaymentConfirmation(
+            payment_id=intent.id,
+            status=status_map.get(intent.status, PaymentStatus.FAILED),
+            amount_cents=intent.amount_received,
+            currency=intent.currency,
+            timestamp=str(intent.created),
+        )
+```
+
+### How the Application Uses the ACL
+
+```python
+# application/order/place_order.py (excerpt)
+from domain.payment.gateway import IPaymentGateway  # ← Protocol, not Stripe
+
+class PlaceOrderHandler:
+    def __init__(
+        self,
+        order_repo: IOrderRepository,
+        payment_gateway: IPaymentGateway,    # ← injected via DI
+    ) -> None:
+        self._order_repo = order_repo
+        self._payment = payment_gateway
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        order = Order.place(...)
+        # ...add lines, confirm...
+
+        confirmation = self._payment.charge(
+            PaymentRequest(
+                order_id=str(order.id),
+                amount_cents=order.total.amount,
+                currency=order.total.currency,
+                customer_email=command.customer_email,
+            )
+        )
+
+        if confirmation.status == PaymentStatus.FAILED:
+            raise ValueError("Payment failed")
+
+        order.mark_paid(payment_id=confirmation.payment_id)
+        self._order_repo.save(order)
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### Switching Providers Is Now Trivial
+
+```python
+# main.py — swap Stripe for PayPal by changing one line
+# Before:
+payment_gateway = StripePaymentGateway(api_key=settings.STRIPE_KEY)
+
+# After:
+payment_gateway = PayPalPaymentGateway(client_id=settings.PAYPAL_ID)
+
+# The application and domain code changes: ZERO.
+```
+
+### When Do You Need an ACL?
+
+| Scenario | Need ACL? |
+|---|---|
+| Calling a third-party API (Stripe, Twilio, FedEx) | Yes |
+| Consuming a legacy system's database/API | Yes |
+| Reading from another team's microservice | Often yes |
+| Using a well-known library (datetime, uuid) | No — these are universal |
+| Using your own infrastructure (own DB, own queue) | Usually a repository is enough |
+
+---
+
+## 16. Unit of Work Pattern
+
+### The Problem: Saving Multiple Aggregates Atomically
+
+Your `PlaceOrderHandler` saves an `Order` and updates a `Customer`'s last-order date. What if the order saves but the customer update fails? You now have inconsistent data.
+
+```python
+# WRONG — two separate saves, no transaction guarantee
+class PlaceOrderHandler:
+    def handle(self, command):
+        order = Order.place(...)
+        self._order_repo.save(order)       # ← commits
+        customer.record_order(order.id)
+        self._customer_repo.save(customer) # ← fails! order is orphaned
+```
+
+### What Is a Unit of Work?
+
+A Unit of Work tracks **all changes** made during a single business operation and commits them **together** in one database transaction — or rolls them all back if anything fails.
+
+```
+┌─────────────────────────────────────────────┐
+│  Unit of Work                               │
+│                                             │
+│  ┌──────────────┐  ┌────────────────────┐  │
+│  │ OrderRepo    │  │ CustomerRepo       │  │
+│  │ (tracked)    │  │ (tracked)          │  │
+│  └──────────────┘  └────────────────────┘  │
+│                                             │
+│  commit() → both saved in ONE transaction   │
+│  rollback() → neither is saved             │
+└─────────────────────────────────────────────┘
+```
+
+### Protocol — `domain/shared/unit_of_work.py`
+
+```python
+# domain/shared/unit_of_work.py
+from __future__ import annotations
+from typing import Protocol
+from domain.order.repository import IOrderRepository
+from domain.customer.repository import ICustomerRepository
+
+
+class IUnitOfWork(Protocol):
+    """Abstracts a database transaction boundary.
+
+    Provides access to all repositories that share the same transaction.
+    commit() saves all changes atomically; rollback() discards everything.
+    """
+
+    orders: IOrderRepository
+    customers: ICustomerRepository
+
+    def commit(self) -> None:
+        ...
+
+    def rollback(self) -> None:
+        ...
+
+    def __enter__(self) -> IUnitOfWork:
+        ...
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        ...
+```
+
+### Infrastructure Implementation — `infrastructure/persistence/sqlalchemy_uow.py`
+
+```python
+# infrastructure/persistence/sqlalchemy_uow.py
+from sqlalchemy.orm import Session, sessionmaker
+from domain.shared.unit_of_work import IUnitOfWork
+from infrastructure.persistence.sqlalchemy_order_repo import SQLAlchemyOrderRepository
+from infrastructure.persistence.sqlalchemy_customer_repo import SQLAlchemyCustomerRepository
+
+
+class SQLAlchemyUnitOfWork:
+    """Concrete Unit of Work backed by a SQLAlchemy session.
+
+    All repositories in this UoW share the same DB session.
+    commit() flushes and commits everything; rollback() discards.
+    """
+
+    def __init__(self, session_factory: sessionmaker) -> None:
+        self._session_factory = session_factory
+
+    def __enter__(self) -> "SQLAlchemyUnitOfWork":
+        self._session: Session = self._session_factory()
+        self.orders = SQLAlchemyOrderRepository(self._session)
+        self.customers = SQLAlchemyCustomerRepository(self._session)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if exc_type is not None:
+            self.rollback()
+        self._session.close()
+
+    def commit(self) -> None:
+        self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
+```
+
+### Application Service with Unit of Work
+
+```python
+# application/order/place_order.py — using UoW
+from domain.shared.unit_of_work import IUnitOfWork
+
+class PlaceOrderHandler:
+    def __init__(self, uow: IUnitOfWork) -> None:
+        self._uow = uow
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        with self._uow as uow:
+            customer = uow.customers.get(command.customer_id)
+
+            if customer.status == CustomerStatus.SUSPENDED:
+                raise ValueError("Suspended customers cannot place orders")
+
+            order = Order.place(customer_id=customer.id, currency=command.currency)
+            for line in command.lines:
+                order.add_line(
+                    product_id=line.product_id,
+                    quantity=line.quantity,
+                    unit_price=line.unit_price,
+                )
+            order.confirm()
+
+            customer.record_last_order(order.id)
+
+            uow.orders.save(order)
+            uow.customers.save(customer)
+            uow.commit()  # ← both saved atomically
+
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### Wiring in `main.py`
+
+```python
+# main.py
+from infrastructure.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
+
+def get_place_order_handler() -> PlaceOrderHandler:
+    uow = SQLAlchemyUnitOfWork(session_factory=SessionLocal)
+    return PlaceOrderHandler(uow=uow)
+```
+
+### Unit of Work vs Repository-per-Request
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Repository injected with shared session (current doc) | Simple, works for single-aggregate use cases | No explicit transaction boundary; easy to forget commits |
+| Unit of Work | Explicit atomicity; groups repos under one transaction | Slightly more wiring; UoW object can grow large |
+
+### Rules of Unit of Work
+
+1. **One UoW per use case** — create it at the start, commit at the end.
+2. **All repos come from the UoW** — never mix a UoW repo with a standalone repo.
+3. **Commit once** — don't call `commit()` multiple times in one handler.
+4. **Let `__exit__` handle rollback** — if an exception escapes, auto-rollback.
+
+---
+
+## 17. Domain Event Dispatching and Handlers
+
+### The Problem: Side Effects Coupled to Business Logic
+
+When an order is placed, you need to:
+- Send a confirmation email
+- Update analytics
+- Notify the warehouse
+- Award loyalty points
+
+If you put all of this in `PlaceOrderHandler`, it becomes 200 lines of unrelated concerns glued together.
+
+```python
+# WRONG — everything crammed into one handler
+class PlaceOrderHandler:
+    def handle(self, command):
+        order = Order.place(...)
+        self._order_repo.save(order)
+        self._email_service.send_confirmation(order)     # ← unrelated concern
+        self._analytics.track("order_placed", order)     # ← unrelated concern
+        self._warehouse.notify_new_order(order)          # ← unrelated concern
+        self._loyalty.award_points(order.customer_id)    # ← unrelated concern
+```
+
+### Solution: Domain Events + Event Handlers
+
+The aggregate **raises events** when something important happens. Separate **event handlers** listen and react independently.
+
+```
+Order.place() → raises OrderPlaced event
+                    │
+                    ├── SendConfirmationEmailHandler  (infrastructure)
+                    ├── UpdateAnalyticsHandler         (infrastructure)
+                    ├── NotifyWarehouseHandler         (infrastructure)
+                    └── AwardLoyaltyPointsHandler      (application)
+```
+
+### Architecture
+
+```
+domain/
+    order/
+        events.py                    ← Event definitions (data classes)
+    shared/
+        domain_event.py              ← Base event class
+        event_bus.py                 ← IEventBus Protocol
+
+application/
+    event_handlers/
+        on_order_placed.py           ← Handler that awards loyalty points
+        on_order_cancelled.py        ← Handler that initiates refund
+
+infrastructure/
+    messaging/
+        in_memory_event_bus.py       ← Simple sync dispatcher
+        kafka_event_bus.py           ← Async distributed dispatcher
+    event_handlers/
+        send_confirmation_email.py   ← Infrastructure-level handler
+        notify_warehouse.py
+```
+
+### Base Event — `domain/shared/domain_event.py`
+
+```python
+# domain/shared/domain_event.py
+from __future__ import annotations
+from dataclasses import dataclass, field
+from datetime import datetime
+import uuid
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    """Base class for all domain events."""
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    occurred_at: datetime = field(default_factory=datetime.utcnow)
+```
+
+### Order Events — `domain/order/events.py`
+
+```python
+# domain/order/events.py
+from dataclasses import dataclass
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass(frozen=True)
+class OrderPlaced(DomainEvent):
+    order_id: str = ""
+    customer_id: str = ""
+    total_amount: int = 0
+    currency: str = "USD"
+
+
+@dataclass(frozen=True)
+class OrderCancelled(DomainEvent):
+    order_id: str = ""
+    customer_id: str = ""
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class OrderShipped(DomainEvent):
+    order_id: str = ""
+    tracking_number: str = ""
+```
+
+### Aggregate Collects Events
+
+```python
+# domain/order/order.py (modified to collect events)
+from domain.order.events import OrderPlaced, OrderCancelled
+
+class Order(BaseModel):
+    # ... existing fields ...
+    _events: list = []
+
+    @property
+    def domain_events(self) -> list:
+        return list(self._events)
+
+    def clear_events(self) -> None:
+        self._events = []
+
+    @classmethod
+    def place(cls, customer_id: uuid.UUID, currency: str) -> "Order":
+        order = cls(
+            customer_id=customer_id,
+            currency=currency,
+            status=OrderStatus.PENDING,
+        )
+        # Raise event — does NOT send email, just records that it happened
+        order._events.append(
+            OrderPlaced(
+                order_id=str(order.id),
+                customer_id=str(customer_id),
+            )
+        )
+        return order
+
+    def cancel(self, reason: str) -> None:
+        if self.status != OrderStatus.PENDING:
+            raise ValueError("Can only cancel PENDING orders")
+        self.status = OrderStatus.CANCELLED
+        self._events.append(
+            OrderCancelled(
+                order_id=str(self.id),
+                customer_id=str(self.customer_id),
+                reason=reason,
+            )
+        )
+```
+
+### Event Bus Protocol — `domain/shared/event_bus.py`
+
+```python
+# domain/shared/event_bus.py
+from typing import Protocol, Callable, Type
+from domain.shared.domain_event import DomainEvent
+
+
+class IEventBus(Protocol):
+    """Dispatches domain events to registered handlers."""
+
+    def publish(self, event: DomainEvent) -> None:
+        ...
+
+    def subscribe(self, event_type: Type[DomainEvent], handler: Callable) -> None:
+        ...
+```
+
+### In-Memory Event Bus — `infrastructure/messaging/in_memory_event_bus.py`
+
+```python
+# infrastructure/messaging/in_memory_event_bus.py
+from collections import defaultdict
+from typing import Callable, Type
+from domain.shared.domain_event import DomainEvent
+from domain.shared.event_bus import IEventBus
+
+
+class InMemoryEventBus:
+    """Synchronous in-process event dispatcher.
+
+    Good for monoliths and testing. For distributed systems, use Kafka/RabbitMQ.
+    """
+
+    def __init__(self) -> None:
+        self._handlers: dict[Type[DomainEvent], list[Callable]] = defaultdict(list)
+
+    def subscribe(self, event_type: Type[DomainEvent], handler: Callable) -> None:
+        self._handlers[event_type].append(handler)
+
+    def publish(self, event: DomainEvent) -> None:
+        for handler in self._handlers[type(event)]:
+            handler(event)
+```
+
+### Event Handler Example — `infrastructure/event_handlers/send_confirmation_email.py`
+
+```python
+# infrastructure/event_handlers/send_confirmation_email.py
+from domain.order.events import OrderPlaced
+
+
+class SendConfirmationEmailHandler:
+    """Reacts to OrderPlaced by sending a confirmation email."""
+
+    def __init__(self, email_client) -> None:
+        self._email = email_client
+
+    def handle(self, event: OrderPlaced) -> None:
+        self._email.send(
+            to=event.customer_id,  # in real app: look up email
+            subject="Order Confirmed",
+            body=f"Your order {event.order_id} has been placed.",
+        )
+```
+
+### Application Service Dispatches Events After Save
+
+```python
+# application/order/place_order.py — with event dispatching
+class PlaceOrderHandler:
+    def __init__(self, uow: IUnitOfWork, event_bus: IEventBus) -> None:
+        self._uow = uow
+        self._event_bus = event_bus
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        with self._uow as uow:
+            customer = uow.customers.get(command.customer_id)
+            order = Order.place(customer_id=customer.id, currency=command.currency)
+            # ...add lines, confirm...
+
+            uow.orders.save(order)
+            uow.commit()
+
+        # Dispatch events AFTER successful commit
+        for event in order.domain_events:
+            self._event_bus.publish(event)
+        order.clear_events()
+
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### Wiring in `main.py`
+
+```python
+# main.py — register event handlers
+from infrastructure.messaging.in_memory_event_bus import InMemoryEventBus
+from infrastructure.event_handlers.send_confirmation_email import SendConfirmationEmailHandler
+from domain.order.events import OrderPlaced, OrderCancelled
+
+event_bus = InMemoryEventBus()
+event_bus.subscribe(OrderPlaced, SendConfirmationEmailHandler(email_client).handle)
+event_bus.subscribe(OrderPlaced, NotifyWarehouseHandler(warehouse_client).handle)
+event_bus.subscribe(OrderCancelled, InitiateRefundHandler(payment_gateway).handle)
+```
+
+### Key Rules
+
+1. **Events are raised inside the aggregate** — they record what happened.
+2. **Events are dispatched AFTER commit** — never send an email for an order that wasn't saved.
+3. **Handlers are independent** — if email fails, warehouse notification still works.
+4. **Handlers don't modify the same aggregate** — that would bypass invariants.
+
+---
+
+## 18. Shared Kernel
+
+### The Problem: Duplicated Base Classes Across Bounded Contexts
+
+Every bounded context (Order, Customer, Product) needs:
+- A base `Entity` class with an ID
+- A base `DomainEvent` class
+- Common value objects like `Money`, `Email`, `Address`
+- Shared types and exceptions
+
+Without a shared kernel, you duplicate these in every context — or worse, one context imports from another, creating coupling.
+
+### What Is a Shared Kernel?
+
+A Shared Kernel is a **small, carefully managed** set of code that multiple bounded contexts agree to share. It contains only foundational building blocks — never business rules specific to one context.
+
+```
+domain/
+    shared/                          ← SHARED KERNEL
+    │                                  Owned by the team collectively.
+    │                                  Changes require agreement from all contexts.
+    │
+    order/                           ← uses shared/
+    customer/                        ← uses shared/
+    product/                         ← uses shared/
+```
+
+### Folder Structure
+
+```
+domain/
+    shared/
+        __init__.py
+        entity.py                    ← Base entity with ID and equality
+        aggregate_root.py            ← Base aggregate with event collection
+        value_objects.py             ← Money, Email, Address
+        domain_event.py              ← Base event class
+        specification.py             ← Base specification protocol
+        exceptions.py                ← DomainException base class
+        types.py                     ← Common type aliases
+```
+
+### Base Entity — `domain/shared/entity.py`
+
+```python
+# domain/shared/entity.py
+from __future__ import annotations
+import uuid
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Entity:
+    """Base class for all domain entities.
+
+    Entities are equal if and only if they have the same ID,
+    regardless of their other attributes.
+    """
+
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Entity):
+            return NotImplemented
+        return self.id == other.id
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+```
+
+### Base Aggregate Root — `domain/shared/aggregate_root.py`
+
+```python
+# domain/shared/aggregate_root.py
+from __future__ import annotations
+from dataclasses import dataclass, field
+from domain.shared.entity import Entity
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass
+class AggregateRoot(Entity):
+    """Base class for all aggregate roots.
+
+    Collects domain events that are dispatched after persistence.
+    """
+
+    _events: list[DomainEvent] = field(default_factory=list, init=False, repr=False)
+
+    @property
+    def domain_events(self) -> list[DomainEvent]:
+        return list(self._events)
+
+    def clear_events(self) -> None:
+        self._events = []
+
+    def _raise_event(self, event: DomainEvent) -> None:
+        self._events.append(event)
+```
+
+### Common Value Objects — `domain/shared/value_objects.py`
+
+```python
+# domain/shared/value_objects.py
+from __future__ import annotations
+from dataclasses import dataclass
+import re
+
+
+@dataclass(frozen=True)
+class Money:
+    """Immutable monetary amount. Prevents floating-point currency errors."""
+
+    amount: int       # in smallest unit (cents)
+    currency: str     # ISO 4217
+
+    def __post_init__(self) -> None:
+        if self.amount < 0:
+            raise ValueError("Money amount cannot be negative")
+        if len(self.currency) != 3:
+            raise ValueError("Currency must be 3-letter ISO code")
+
+    def add(self, other: Money) -> Money:
+        self._assert_same_currency(other)
+        return Money(amount=self.amount + other.amount, currency=self.currency)
+
+    def subtract(self, other: Money) -> Money:
+        self._assert_same_currency(other)
+        if self.amount < other.amount:
+            raise ValueError("Cannot subtract: would result in negative money")
+        return Money(amount=self.amount - other.amount, currency=self.currency)
+
+    def multiply(self, factor: int) -> Money:
+        return Money(amount=self.amount * factor, currency=self.currency)
+
+    def _assert_same_currency(self, other: Money) -> None:
+        if self.currency != other.currency:
+            raise ValueError(f"Cannot operate on {self.currency} and {other.currency}")
+
+
+@dataclass(frozen=True)
+class Email:
+    """Validated email address."""
+
+    value: str
+
+    def __post_init__(self) -> None:
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(pattern, self.value):
+            raise ValueError(f"Invalid email: {self.value}")
+
+
+@dataclass(frozen=True)
+class Address:
+    """Postal address value object."""
+
+    street: str
+    city: str
+    state: str
+    postal_code: str
+    country: str
+
+    def __post_init__(self) -> None:
+        if not all([self.street, self.city, self.country]):
+            raise ValueError("Street, city, and country are required")
+```
+
+### Domain Exceptions — `domain/shared/exceptions.py`
+
+```python
+# domain/shared/exceptions.py
+
+class DomainException(Exception):
+    """Base exception for all domain-level errors."""
+    pass
+
+
+class InvariantViolation(DomainException):
+    """Raised when an aggregate's invariant is violated."""
+    pass
+
+
+class EntityNotFound(DomainException):
+    """Raised when a required entity doesn't exist."""
+    pass
+
+
+class ConcurrencyConflict(DomainException):
+    """Raised when optimistic concurrency check fails."""
+    pass
+```
+
+### How Bounded Contexts Use the Shared Kernel
+
+```python
+# domain/order/order.py — imports from shared kernel
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.value_objects import Money
+from domain.shared.exceptions import InvariantViolation
+from domain.order.events import OrderPlaced
+
+
+class Order(AggregateRoot):
+    """Order aggregate root — inherits ID, equality, and event collection from shared kernel."""
+
+    def add_line(self, product_id, quantity, unit_price: Money) -> None:
+        new_total = self.total.add(unit_price.multiply(quantity))
+        if new_total.amount > 50_000_00:
+            raise InvariantViolation("Order total cannot exceed $50,000")
+        # ...
+```
+
+### Rules for the Shared Kernel
+
+1. **Keep it minimal** — only code that ALL contexts need.
+2. **No business rules** — it's infrastructure for the domain, not domain logic itself.
+3. **Changes require team consensus** — since all contexts depend on it.
+4. **Version it carefully** — a breaking change here breaks everything.
+5. **Never put a specific context's logic here** — if only Order needs it, it belongs in `domain/order/`.
+
+---
+
+## 19. Testing Strategy
+
+### The Testing Pyramid in DDD
+
+```
+          ╱╲
+         ╱  ╲          E2E Tests (few)
+        ╱ E2E╲         — Full HTTP round-trip
+       ╱──────╲        — Slow, expensive, fragile
+      ╱        ╲
+     ╱Integration╲    Integration Tests (moderate)
+    ╱──────────────╲   — Repos against real DB
+   ╱                ╲  — ACL against real APIs (sandbox)
+  ╱   Unit Tests     ╲ Unit Tests (many, fast)
+ ╱────────────────────╲ — Domain logic: no DB, no framework
+╱                      ╲ — Instantiate class, call method, assert
+```
+
+### Folder Structure
+
+```
+tests/
+    unit/
+        domain/
+            order/
+                test_order.py              ← aggregate invariant tests
+                test_order_line.py         ← entity behavior tests
+                test_value_objects.py      ← money arithmetic, validation
+                test_specifications.py     ← spec logic tests
+            pricing/
+                test_pricing_service.py    ← domain service tests
+        application/
+            order/
+                test_place_order.py        ← handler with mock repos
+                test_cancel_order.py
+
+    integration/
+        persistence/
+            test_order_repo.py             ← SQLAlchemy repo against test DB
+            test_customer_repo.py
+        acl/
+            test_stripe_gateway.py         ← against Stripe sandbox
+        messaging/
+            test_kafka_publisher.py        ← against local Kafka
+
+    e2e/
+        test_place_order_api.py            ← POST /orders end-to-end
+        test_cancel_order_api.py
+
+    conftest.py                            ← shared fixtures (DB session, test client)
+```
+
+### Unit Tests — Domain Layer (Fast, No I/O)
+
+```python
+# tests/unit/domain/order/test_order.py
+import pytest
+from domain.order.order import Order
+from domain.order.value_objects import OrderStatus, Money
+
+
+class TestOrderPlacement:
+    def test_new_order_is_pending(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        assert order.status == OrderStatus.PENDING
+
+    def test_order_raises_event_on_place(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        assert len(order.domain_events) == 1
+        assert order.domain_events[0].__class__.__name__ == "OrderPlaced"
+
+
+class TestOrderLines:
+    def test_can_add_line(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        order.add_line(product_id=uuid.uuid4(), quantity=2, unit_price=Money(1000, "USD"))
+        assert len(order.lines) == 1
+
+    def test_total_cannot_exceed_limit(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        with pytest.raises(ValueError, match="exceeding the 50000 limit"):
+            order.add_line(
+                product_id=uuid.uuid4(),
+                quantity=1,
+                unit_price=Money(50_001_00, "USD"),
+            )
+
+
+class TestOrderStatusTransitions:
+    def test_can_cancel_pending_order(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        order.cancel(reason="changed mind")
+        assert order.status == OrderStatus.CANCELLED
+
+    def test_cannot_cancel_confirmed_order(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        order.add_line(product_id=uuid.uuid4(), quantity=1, unit_price=Money(1000, "USD"))
+        order.confirm()
+        with pytest.raises(ValueError, match="Can only cancel PENDING"):
+            order.cancel(reason="too late")
+
+    def test_cannot_confirm_without_lines(self):
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        with pytest.raises(ValueError, match="at least one line"):
+            order.confirm()
+```
+
+### Unit Tests — Application Layer (Mock Repos)
+
+```python
+# tests/unit/application/order/test_place_order.py
+import pytest
+from unittest.mock import Mock, MagicMock
+from application.order.place_order import PlaceOrderHandler, PlaceOrderCommand
+from domain.customer.customer import Customer
+from domain.customer.value_objects import CustomerStatus
+
+
+class TestPlaceOrderHandler:
+    def setup_method(self):
+        self.uow = MagicMock()
+        self.event_bus = Mock()
+        self.handler = PlaceOrderHandler(uow=self.uow, event_bus=self.event_bus)
+
+    def test_raises_if_customer_not_found(self):
+        self.uow.__enter__.return_value = self.uow
+        self.uow.customers.get.side_effect = KeyError("not found")
+
+        command = PlaceOrderCommand(customer_id=uuid.uuid4(), lines=[], currency="USD")
+        with pytest.raises(KeyError):
+            self.handler.handle(command)
+
+    def test_raises_if_customer_suspended(self):
+        self.uow.__enter__.return_value = self.uow
+        customer = Customer(status=CustomerStatus.SUSPENDED)
+        self.uow.customers.get.return_value = customer
+
+        command = PlaceOrderCommand(customer_id=customer.id, lines=[], currency="USD")
+        with pytest.raises(ValueError, match="Suspended"):
+            self.handler.handle(command)
+
+    def test_successful_placement_commits_and_publishes(self):
+        self.uow.__enter__.return_value = self.uow
+        customer = Customer(status=CustomerStatus.ACTIVE)
+        self.uow.customers.get.return_value = customer
+
+        command = PlaceOrderCommand(
+            customer_id=customer.id,
+            currency="USD",
+            lines=[{"product_id": uuid.uuid4(), "quantity": 1, "unit_price": 1000}],
+        )
+        result = self.handler.handle(command)
+
+        self.uow.orders.save.assert_called_once()
+        self.uow.commit.assert_called_once()
+        self.event_bus.publish.assert_called()
+        assert result.order_id is not None
+```
+
+### Integration Tests — Repository Against Real DB
+
+```python
+# tests/integration/persistence/test_order_repo.py
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from infrastructure.persistence.sqlalchemy_order_repo import SQLAlchemyOrderRepository
+from domain.order.order import Order
+from domain.order.value_objects import Money
+
+
+@pytest.fixture
+def session():
+    engine = create_engine("postgresql://test:test@localhost/test_ecommerce")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.rollback()
+    session.close()
+
+
+class TestSQLAlchemyOrderRepo:
+    def test_save_and_retrieve(self, session):
+        repo = SQLAlchemyOrderRepository(session)
+        order = Order.place(customer_id=uuid.uuid4(), currency="USD")
+        order.add_line(product_id=uuid.uuid4(), quantity=2, unit_price=Money(1500, "USD"))
+
+        repo.save(order)
+        session.flush()
+
+        retrieved = repo.get(order.id)
+        assert retrieved.id == order.id
+        assert len(retrieved.lines) == 1
+        assert retrieved.total == Money(3000, "USD")
+
+    def test_get_nonexistent_raises(self, session):
+        repo = SQLAlchemyOrderRepository(session)
+        with pytest.raises(KeyError):
+            repo.get(uuid.uuid4())
+```
+
+### E2E Tests — Full HTTP Round Trip
+
+```python
+# tests/e2e/test_place_order_api.py
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+class TestPlaceOrderAPI:
+    def test_place_order_returns_201(self, client):
+        response = client.post("/orders", json={
+            "customer_id": "550e8400-e29b-41d4-a716-446655440000",
+            "currency": "USD",
+            "lines": [
+                {"product_id": "...", "quantity": 2, "unit_price": 1500}
+            ],
+        })
+        assert response.status_code == 201
+        assert "order_id" in response.json()
+
+    def test_place_order_invalid_customer_returns_404(self, client):
+        response = client.post("/orders", json={
+            "customer_id": "00000000-0000-0000-0000-000000000000",
+            "currency": "USD",
+            "lines": [{"product_id": "...", "quantity": 1, "unit_price": 1000}],
+        })
+        assert response.status_code == 404
+```
+
+### What Each Test Layer Validates
+
+| Layer | Tests | Speed | Dependencies |
+|---|---|---|---|
+| Unit / Domain | Business rules, invariants, state transitions | Milliseconds | None |
+| Unit / Application | Orchestration logic, correct calls to repos | Milliseconds | Mocks only |
+| Integration | Repos map correctly to DB; ACLs translate correctly | Seconds | Real DB / sandbox API |
+| E2E | Full request → response works; wiring is correct | Seconds | Full running app |
+
+### The Golden Rule
+
+> **Domain unit tests should NEVER need a database, HTTP server, or any framework.** If they do, your domain has leaked infrastructure.
+
+---
+
+## 20. Bounded Context Mapping
+
+### The Problem: How Do Multiple Bounded Contexts Communicate?
+
+In a real system, `Order`, `Customer`, `Product`, `Inventory`, `Shipping`, and `Billing` are separate bounded contexts. Each has its own:
+- Ubiquitous language (same word, different meaning)
+- Data model
+- Team ownership (potentially)
+
+How they communicate defines your architecture's resilience and coupling.
+
+### What Is a Context Map?
+
+A Context Map is a diagram + documentation showing **how bounded contexts relate** to each other — who depends on whom, and what style of integration they use.
+
+### Relationship Patterns
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        CONTEXT MAP                                   │
+│                                                                     │
+│  ┌──────────┐   Shared Kernel    ┌──────────┐                      │
+│  │  Order   │◄──────────────────►│ Customer │                      │
+│  │ Context  │                    │ Context  │                      │
+│  └────┬─────┘                    └──────────┘                      │
+│       │                                                             │
+│       │ Customer-Supplier                                           │
+│       │ (Order is downstream)                                       │
+│       ▼                                                             │
+│  ┌──────────┐                    ┌──────────┐                      │
+│  │Inventory │   Conformist       │ Shipping │                      │
+│  │ Context  │◄───────────────────│ Context  │                      │
+│  └──────────┘                    └────┬─────┘                      │
+│                                       │                             │
+│                                       │ ACL (Anti-Corruption Layer) │
+│                                       ▼                             │
+│                                  ┌──────────┐                      │
+│                                  │  FedEx   │  (External system)    │
+│                                  │  API     │                      │
+│                                  └──────────┘                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The Integration Patterns Explained
+
+#### 1. Shared Kernel
+
+Two contexts share a small common library (value objects, base classes). Both teams own it together.
+
+```python
+# Both Order and Customer import from domain/shared/
+from domain.shared.value_objects import Money, Email
+```
+
+**When to use:** Contexts are owned by the same team. Shared code is small and stable.  
+**Risk:** Changes to the kernel affect all contexts.
+
+#### 2. Customer-Supplier
+
+One context (supplier/upstream) provides data that another (customer/downstream) consumes. The downstream team can request features from the upstream team.
+
+```
+Upstream (Supplier): Product Context — defines product catalog
+Downstream (Customer): Order Context — needs product prices and availability
+```
+
+```python
+# Order context consumes Product context's data via a defined interface
+class IProductCatalog(Protocol):
+    def get_price(self, product_id: uuid.UUID) -> Money: ...
+    def check_availability(self, product_id: uuid.UUID, qty: int) -> bool: ...
+```
+
+**When to use:** Two teams with a cooperative relationship. Downstream can influence upstream's API.
+
+#### 3. Conformist
+
+The downstream context **accepts the upstream's model as-is** — no translation, no negotiation. You conform to their data format.
+
+```python
+# You just use their response format directly — no translation layer
+# Acceptable when the upstream model is good enough and stable
+```
+
+**When to use:** The upstream is a dominant system (ERP, legacy DB). You have no power to change it, and their model is acceptable.  
+**Risk:** If their model is ugly, your code becomes ugly.
+
+#### 4. Anti-Corruption Layer (ACL)
+
+The downstream context **translates** the upstream's foreign model into its own domain language. (Covered in detail in Section 15.)
+
+**When to use:** External system with an incompatible model. You refuse to let their mess into your domain.
+
+#### 5. Published Language
+
+A context publishes a well-documented schema (JSON Schema, Protobuf, Avro) that others consume. The schema IS the contract.
+
+```python
+# Order context publishes events in a documented schema
+# Other contexts consume the event, trusting the published schema
+
+# order_placed_v1.json (Published Language)
+{
+    "event": "OrderPlaced",
+    "version": 1,
+    "schema": {
+        "order_id": "string (UUID)",
+        "customer_id": "string (UUID)",
+        "total_cents": "integer",
+        "currency": "string (ISO 4217)"
+    }
+}
+```
+
+**When to use:** Async communication via events/messages between contexts (especially microservices).
+
+#### 6. Open Host Service
+
+A context exposes a well-defined API (REST, gRPC) that multiple consumers use. The API is the stable contract.
+
+```
+Product Context exposes:
+  GET /products/{id}         ← used by Order, Recommendation, Marketing
+  GET /products?category=X   ← used by Search, Analytics
+```
+
+**When to use:** One context serves many consumers. Invest in a stable, versioned API.
+
+#### 7. Separate Ways
+
+Two contexts have **no integration** — they're completely independent. Data is duplicated where needed.
+
+**When to use:** The cost of integration exceeds the cost of duplication.
+
+### How Bounded Contexts Communicate in Practice
+
+| Integration Style | Coupling | Latency | Example |
+|---|---|---|---|
+| Synchronous API call | High | Low | Order calls Inventory.reserve() |
+| Domain Events (async) | Low | Higher | Order emits OrderPlaced → Shipping reacts |
+| Shared Database | Very High | Low | AVOID — this is an anti-pattern |
+| Message Queue | Low | Medium | Order publishes to Kafka → Billing subscribes |
+
+### The Golden Rule of Context Boundaries
+
+> **Each bounded context should be deployable independently.** If changing Order forces you to redeploy Customer, your boundary is wrong.
+
+### Ubiquitous Language Conflicts
+
+The same word means different things in different contexts:
+
+| Term | In Order Context | In Shipping Context | In Billing Context |
+|---|---|---|---|
+| "Address" | Where customer lives | Where to ship the package | Where to send the invoice |
+| "Product" | Line item with quantity | Package dimensions + weight | Billable SKU |
+| "Customer" | Entity placing orders | Recipient name on label | Payer with payment method |
+
+This is WHY bounded contexts exist — to give each concept its own precise meaning.
+
+---
+
+## 21. Factory Pattern
+
+### The Problem: Complex Aggregate Creation
+
+Creating an aggregate isn't always as simple as `Order.place(customer_id, currency)`. In real systems:
+- You reconstruct aggregates **from persistence** (hydration from DB rows).
+- You create aggregates **from external events** (a message from another system).
+- You build aggregates with **complex initialization** (multiple validation steps, defaults, derived fields).
+
+If this logic lives in the constructor, it becomes bloated and impossible to test in isolation.
+
+### What Is a Factory in DDD?
+
+A Factory encapsulates **complex object creation** so that the client doesn't need to know the details. It ensures the aggregate is **always created in a valid state**.
+
+### Three Types of Factories
+
+```
+1. Factory Method (on the aggregate itself)      ← simplest, most common
+2. Standalone Factory (separate class)           ← for complex or cross-aggregate creation
+3. Repository as Factory (reconstruction)        ← for hydrating from persistence
+```
+
+### Type 1: Factory Method on the Aggregate
+
+Already present in the document — `Order.place()` is a factory method:
+
+```python
+# domain/order/order.py
+class Order(AggregateRoot):
+    @classmethod
+    def place(cls, customer_id: uuid.UUID, currency: str) -> "Order":
+        """Factory method — guarantees Order is born in valid state."""
+        order = cls(
+            customer_id=customer_id,
+            currency=currency,
+            status=OrderStatus.PENDING,
+            lines=[],
+        )
+        order._raise_event(OrderPlaced(order_id=str(order.id), customer_id=str(customer_id)))
+        return order
+```
+
+**When to use:** Creation logic is simple, belongs to the aggregate, and doesn't require external data.
+
+### Type 2: Standalone Factory — Complex Creation
+
+When creating an aggregate requires data from **multiple sources** or complex rules that don't belong inside the aggregate itself.
+
+```python
+# domain/order/order_factory.py
+from __future__ import annotations
+import uuid
+from domain.order.order import Order
+from domain.order.value_objects import Money, OrderStatus
+from domain.customer.customer import Customer
+from domain.product.product import Product
+from domain.pricing.pricing_service import PricingService
+
+
+class OrderFactory:
+    """Creates Order aggregates from complex inputs.
+
+    Use when:
+    - Creation needs data from multiple aggregates (Customer tier, Product price).
+    - Multiple validation steps are required before the aggregate can exist.
+    - Different creation paths exist (web order, import order, repeat order).
+    """
+
+    def __init__(self, pricing_service: PricingService) -> None:
+        self._pricing = pricing_service
+
+    def create_from_cart(
+        self,
+        customer: Customer,
+        cart_items: list[dict],
+        products: dict[uuid.UUID, Product],
+    ) -> Order:
+        """Create an order from a shopping cart.
+
+        Applies pricing rules, validates stock, and builds the order.
+        """
+        if not cart_items:
+            raise ValueError("Cannot create order from empty cart")
+
+        order = Order.place(customer_id=customer.id, currency="USD")
+
+        for item in cart_items:
+            product = products[item["product_id"]]
+            breakdown = self._pricing.calculate_line_price(
+                product=product,
+                customer=customer,
+                quantity=item["quantity"],
+            )
+            order.add_line(
+                product_id=product.id,
+                quantity=item["quantity"],
+                unit_price=breakdown.final_price,
+            )
+
+        return order
+
+    def create_repeat_order(self, customer: Customer, previous_order: Order) -> Order:
+        """Create a new order by copying lines from a previous order."""
+        order = Order.place(customer_id=customer.id, currency=previous_order.currency)
+        for line in previous_order.lines:
+            order.add_line(
+                product_id=line.product_id,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+            )
+        return order
+
+    def create_from_import(self, external_data: dict) -> Order:
+        """Create an order from an external system's data (e.g., legacy migration).
+
+        Translates foreign field names and applies domain validation.
+        """
+        order = Order.place(
+            customer_id=uuid.UUID(external_data["cust_ref"]),
+            currency=external_data.get("ccy", "USD"),
+        )
+        for item in external_data.get("line_items", []):
+            order.add_line(
+                product_id=uuid.UUID(item["sku_id"]),
+                quantity=item["qty"],
+                unit_price=Money(amount=item["price_cents"], currency="USD"),
+            )
+        return order
+```
+
+### Type 3: Repository as Reconstitution Factory
+
+When you load an aggregate from the database, the repository acts as a factory that **reconstitutes** the domain object from raw data — without triggering creation events.
+
+```python
+# infrastructure/persistence/sqlalchemy_order_repo.py (excerpt)
+class SQLAlchemyOrderRepository:
+    def _to_domain(self, model: OrderModel) -> Order:
+        """Reconstitute an Order aggregate from database model.
+
+        This is a factory operation — it builds a domain object from
+        persistence data WITHOUT triggering OrderPlaced events.
+        """
+        order = Order.__new__(Order)  # bypass __init__ to avoid re-validation
+        order.id = uuid.UUID(model.id)
+        order.customer_id = uuid.UUID(model.customer_id)
+        order.status = OrderStatus(model.status)
+        order.currency = model.currency
+        order.lines = [
+            self._to_domain_line(line_model)
+            for line_model in model.lines
+        ]
+        order._events = []  # no events on reconstitution
+        return order
+```
+
+### Using Factory in Application Service
+
+```python
+# application/order/place_order.py — using factory
+from domain.order.order_factory import OrderFactory
+
+class PlaceOrderHandler:
+    def __init__(
+        self,
+        uow: IUnitOfWork,
+        product_repo: IProductRepository,
+        order_factory: OrderFactory,
+        event_bus: IEventBus,
+    ) -> None:
+        self._uow = uow
+        self._product_repo = product_repo
+        self._factory = order_factory
+        self._event_bus = event_bus
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        with self._uow as uow:
+            customer = uow.customers.get(command.customer_id)
+            products = {
+                line.product_id: self._product_repo.get(line.product_id)
+                for line in command.lines
+            }
+
+            # Factory handles complex creation
+            order = self._factory.create_from_cart(
+                customer=customer,
+                cart_items=[vars(line) for line in command.lines],
+                products=products,
+            )
+            order.confirm()
+
+            uow.orders.save(order)
+            uow.commit()
+
+        for event in order.domain_events:
+            self._event_bus.publish(event)
+        order.clear_events()
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### When to Use Each Type
+
+| Scenario | Factory Type |
+|---|---|
+| Simple creation, no external dependencies | Factory method (`Order.place(...)`) |
+| Creation needs multiple aggregates or services | Standalone Factory class |
+| Multiple creation paths (from cart, from import, repeat) | Standalone Factory with multiple methods |
+| Rebuilding from database/persistence | Repository's internal reconstitution method |
+| Creation logic is reused across multiple use cases | Standalone Factory (shared via DI) |
+
+---
+
+## 22. Outbox Pattern — Reliable Event Publishing
+
+### The Problem: Save and Publish Must Be Atomic
+
+After placing an order, you do two things:
+1. Save the order to the database
+2. Publish an `OrderPlaced` event to Kafka/RabbitMQ
+
+What happens if the DB save succeeds but the message broker is down? The order exists in the database, but no one knows about it — no email, no warehouse notification, no analytics.
+
+What if you publish first, then the DB save fails? Now you've told the world about an order that doesn't exist.
+
+```python
+# WRONG — not atomic
+def handle(self, command):
+    order = Order.place(...)
+    self._order_repo.save(order)          # ← succeeds
+    self._event_bus.publish(OrderPlaced)   # ← broker is down! event lost forever
+```
+
+### What Is the Outbox Pattern?
+
+Instead of publishing directly to a message broker, you **write the event to an outbox table in the same database transaction** as the aggregate. A separate background process (relay) reads the outbox and publishes to the broker.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Single Database Transaction                            │
+│                                                         │
+│  1. INSERT INTO orders (...)                            │
+│  2. INSERT INTO outbox (event_type, payload, ...)       │
+│                                                         │
+│  COMMIT  ← both succeed or both fail (ACID)            │
+└─────────────────────────────────────────────────────────┘
+          │
+          │  (later, async)
+          ▼
+┌─────────────────────────────────────────────────────────┐
+│  Outbox Relay (background worker)                       │
+│                                                         │
+│  1. SELECT * FROM outbox WHERE published = false        │
+│  2. Publish each event to Kafka                         │
+│  3. UPDATE outbox SET published = true WHERE id = ...   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Folder Structure
+
+```
+infrastructure/
+    persistence/
+        outbox.py                    ← Outbox repository (stores events in DB)
+        outbox_model.py              ← SQLAlchemy model for outbox table
+    messaging/
+        outbox_relay.py              ← Background worker that publishes from outbox
+        kafka_publisher.py           ← Actual Kafka publish logic
+```
+
+### Outbox DB Model — `infrastructure/persistence/outbox_model.py`
+
+```python
+# infrastructure/persistence/outbox_model.py
+from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID
+from infrastructure.persistence.base import Base
+import uuid
+from datetime import datetime
+
+
+class OutboxMessage(Base):
+    """Stores domain events as outbox messages for reliable publishing."""
+
+    __tablename__ = "outbox"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_type = Column(String(255), nullable=False, index=True)
+    aggregate_id = Column(String(255), nullable=False, index=True)
+    payload = Column(Text, nullable=False)       # JSON-serialized event
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    published = Column(Boolean, default=False, nullable=False, index=True)
+    published_at = Column(DateTime, nullable=True)
+```
+
+### Outbox Repository — `infrastructure/persistence/outbox.py`
+
+```python
+# infrastructure/persistence/outbox.py
+import json
+from datetime import datetime
+from sqlalchemy.orm import Session
+from domain.shared.domain_event import DomainEvent
+from infrastructure.persistence.outbox_model import OutboxMessage
+
+
+class OutboxRepository:
+    """Stores domain events in the outbox table within the same transaction."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def store(self, event: DomainEvent, aggregate_id: str) -> None:
+        message = OutboxMessage(
+            event_type=type(event).__name__,
+            aggregate_id=aggregate_id,
+            payload=json.dumps(self._serialize_event(event)),
+        )
+        self._session.add(message)
+
+    def get_unpublished(self, batch_size: int = 100) -> list[OutboxMessage]:
+        return (
+            self._session.query(OutboxMessage)
+            .filter(OutboxMessage.published == False)
+            .order_by(OutboxMessage.created_at)
+            .limit(batch_size)
+            .all()
+        )
+
+    def mark_published(self, message_id) -> None:
+        message = self._session.query(OutboxMessage).get(message_id)
+        if message:
+            message.published = True
+            message.published_at = datetime.utcnow()
+
+    def _serialize_event(self, event: DomainEvent) -> dict:
+        return {
+            "event_id": event.event_id,
+            "occurred_at": event.occurred_at.isoformat(),
+            **{k: v for k, v in vars(event).items() if k not in ("event_id", "occurred_at")},
+        }
+```
+
+### Modified Unit of Work — Saves Events to Outbox
+
+```python
+# infrastructure/persistence/sqlalchemy_uow.py (modified)
+class SQLAlchemyUnitOfWork:
+    def __enter__(self):
+        self._session = self._session_factory()
+        self.orders = SQLAlchemyOrderRepository(self._session)
+        self.customers = SQLAlchemyCustomerRepository(self._session)
+        self.outbox = OutboxRepository(self._session)  # ← same session!
+        return self
+
+    def commit_with_events(self, events: list[DomainEvent], aggregate_id: str) -> None:
+        """Commit aggregate changes AND store events in ONE transaction."""
+        for event in events:
+            self.outbox.store(event, aggregate_id)
+        self._session.commit()  # ← both aggregate + outbox in single COMMIT
+```
+
+### Application Service Uses Outbox
+
+```python
+# application/order/place_order.py — with outbox pattern
+class PlaceOrderHandler:
+    def __init__(self, uow: IUnitOfWork) -> None:
+        self._uow = uow
+
+    def handle(self, command: PlaceOrderCommand) -> PlaceOrderResult:
+        with self._uow as uow:
+            customer = uow.customers.get(command.customer_id)
+            order = Order.place(customer_id=customer.id, currency=command.currency)
+            # ...add lines, confirm...
+
+            uow.orders.save(order)
+
+            # Events stored in same DB transaction — guaranteed consistency
+            uow.commit_with_events(
+                events=order.domain_events,
+                aggregate_id=str(order.id),
+            )
+            order.clear_events()
+
+        return PlaceOrderResult(order_id=order.id)
+```
+
+### Outbox Relay — Background Worker
+
+```python
+# infrastructure/messaging/outbox_relay.py
+import json
+import time
+from sqlalchemy.orm import sessionmaker
+from infrastructure.persistence.outbox import OutboxRepository
+from infrastructure.messaging.kafka_publisher import KafkaPublisher
+
+
+class OutboxRelay:
+    """Background process that polls outbox and publishes to Kafka.
+
+    Run as a separate process (e.g., Celery beat, cron, or dedicated worker).
+    Guarantees at-least-once delivery.
+    """
+
+    def __init__(self, session_factory: sessionmaker, publisher: KafkaPublisher) -> None:
+        self._session_factory = session_factory
+        self._publisher = publisher
+
+    def run_forever(self, poll_interval_seconds: float = 1.0) -> None:
+        while True:
+            self._process_batch()
+            time.sleep(poll_interval_seconds)
+
+    def _process_batch(self) -> None:
+        session = self._session_factory()
+        try:
+            outbox = OutboxRepository(session)
+            messages = outbox.get_unpublished(batch_size=50)
+
+            for message in messages:
+                self._publisher.publish(
+                    topic=f"domain.events.{message.event_type}",
+                    key=message.aggregate_id,
+                    value=message.payload,
+                )
+                outbox.mark_published(message.id)
+
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+```
+
+### Kafka Publisher — `infrastructure/messaging/kafka_publisher.py`
+
+```python
+# infrastructure/messaging/kafka_publisher.py
+from kafka import KafkaProducer
+import json
+
+
+class KafkaPublisher:
+    """Publishes messages to Kafka topics."""
+
+    def __init__(self, bootstrap_servers: str) -> None:
+        self._producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode("utf-8") if isinstance(v, dict) else v.encode("utf-8"),
+            key_serializer=lambda k: k.encode("utf-8"),
+        )
+
+    def publish(self, topic: str, key: str, value: str) -> None:
+        self._producer.send(topic, key=key, value=value)
+        self._producer.flush()
+```
+
+### Why Outbox Instead of Direct Publish?
+
+| Approach | Problem |
+|---|---|
+| Publish first, then save | If save fails → consumers got a ghost event |
+| Save first, then publish | If publish fails → event is lost |
+| Outbox (save + event in one TX) | Guaranteed: if order exists → event will eventually be published |
+
+### Delivery Guarantees
+
+The outbox gives you **at-least-once delivery**. The relay might publish the same event twice (if it crashes after publishing but before marking as published). Consumers must be **idempotent** — processing the same event twice should produce the same result.
+
+```python
+# Consumer idempotency — check if already processed
+class ShippingEventHandler:
+    def handle(self, event: OrderPlaced) -> None:
+        if self._already_processed(event.event_id):
+            return  # skip duplicate
+        self._create_shipment(event)
+        self._mark_processed(event.event_id)
+```
+
+---
+
+## 23. Complete Updated Folder Structure
+
+With all patterns included, here is the final production-grade DDD structure:
+
+```
+ecommerce/
+│
+├── domain/                              ← Pure business logic (no I/O)
+│   │
+│   ├── shared/                          ← SHARED KERNEL
+│   │   ├── __init__.py
+│   │   ├── entity.py                   ← Base entity with ID + equality
+│   │   ├── aggregate_root.py           ← Base aggregate with event collection
+│   │   ├── value_objects.py            ← Money, Email, Address
+│   │   ├── domain_event.py            ← Base DomainEvent class
+│   │   ├── event_bus.py               ← IEventBus Protocol
+│   │   ├── unit_of_work.py            ← IUnitOfWork Protocol
+│   │   ├── specification.py           ← Base Specification + composites
+│   │   └── exceptions.py              ← DomainException, InvariantViolation
+│   │
+│   ├── order/                          ← Order Bounded Context
+│   │   ├── __init__.py
+│   │   ├── order.py                   ← Order aggregate root
+│   │   ├── order_line.py             ← OrderLine entity
+│   │   ├── order_factory.py          ← Standalone factory for complex creation
+│   │   ├── value_objects.py           ← OrderStatus, ShippingInfo
+│   │   ├── events.py                  ← OrderPlaced, OrderCancelled, OrderShipped
+│   │   ├── repository.py             ← IOrderRepository Protocol
+│   │   └── specifications.py         ← RefundEligibleSpec, HighValueOrderSpec
+│   │
+│   ├── customer/                       ← Customer Bounded Context
+│   │   ├── __init__.py
+│   │   ├── customer.py               ← Customer entity/aggregate
+│   │   ├── value_objects.py           ← CustomerStatus, Tier
+│   │   ├── repository.py             ← ICustomerRepository Protocol
+│   │   └── specifications.py         ← HighValueCustomerSpec
+│   │
+│   ├── product/                        ← Product Bounded Context
+│   │   ├── __init__.py
+│   │   ├── product.py                ← Product aggregate
+│   │   └── repository.py             ← IProductRepository Protocol
+│   │
+│   ├── pricing/                        ← DOMAIN SERVICE
+│   │   ├── __init__.py
+│   │   ├── pricing_service.py        ← Cross-aggregate pricing rules
+│   │   └── value_objects.py           ← Discount, PriceBreakdown
+│   │
+│   └── payment/                        ← Payment subdomain
+│       ├── __init__.py
+│       ├── gateway.py                 ← IPaymentGateway Protocol
+│       └── value_objects.py           ← PaymentConfirmation, PaymentRequest
+│
+├── application/                        ← Use cases / Orchestration
+│   │
+│   ├── order/
+│   │   ├── place_order.py            ← PlaceOrderCommand + Handler
+│   │   ├── cancel_order.py           ← CancelOrderCommand + Handler
+│   │   ├── request_refund.py         ← Uses specification
+│   │   └── get_order.py              ← Query handler (read side)
+│   │
+│   ├── customer/
+│   │   ├── register_customer.py
+│   │   └── update_address.py
+│   │
+│   └── event_handlers/                ← React to domain events
+│       ├── on_order_placed.py         ← Award loyalty points
+│       └── on_order_cancelled.py      ← Initiate refund
+│
+├── infrastructure/                     ← I/O adapters
+│   │
+│   ├── persistence/
+│   │   ├── base.py                    ← SQLAlchemy Base
+│   │   ├── models.py                  ← ORM models (OrderModel, etc.)
+│   │   ├── outbox_model.py           ← Outbox table model
+│   │   ├── outbox.py                 ← OutboxRepository
+│   │   ├── sqlalchemy_uow.py         ← Unit of Work implementation
+│   │   ├── sqlalchemy_order_repo.py  ← IOrderRepository implementation
+│   │   └── sqlalchemy_customer_repo.py
+│   │
+│   ├── acl/                           ← Anti-Corruption Layer
+│   │   ├── payment_gateway.py        ← Stripe → domain translation
+│   │   └── shipping_provider.py      ← FedEx → domain translation
+│   │
+│   ├── messaging/
+│   │   ├── in_memory_event_bus.py    ← Sync dispatcher (dev/test)
+│   │   ├── kafka_publisher.py        ← Kafka publish logic
+│   │   └── outbox_relay.py           ← Background outbox → Kafka worker
+│   │
+│   ├── api/                           ← HTTP layer (FastAPI)
+│   │   ├── orders.py                 ← REST routes
+│   │   ├── customers.py
+│   │   └── schemas.py                ← Pydantic request/response models
+│   │
+│   └── event_handlers/               ← Infrastructure-level handlers
+│       ├── send_confirmation_email.py
+│       └── notify_warehouse.py
+│
+├── tests/
+│   ├── unit/
+│   │   ├── domain/                   ← Fast, no DB
+│   │   └── application/              ← Mocked repos
+│   ├── integration/
+│   │   ├── persistence/              ← Real DB
+│   │   └── acl/                      ← Sandbox APIs
+│   └── e2e/                          ← Full HTTP round-trip
+│
+├── main.py                            ← Composition Root / DI wiring
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Final Checklist: Complete DDD Pattern Coverage
+
+| # | Pattern | Section | Status |
+|---|---|---|---|
+| 1 | Rich Domain Model (vs Anemic) | §1–2 | ✅ |
+| 2 | Aggregate Roots with Invariants | §5 | ✅ |
+| 3 | Value Objects (immutable, no identity) | §5.1 | ✅ |
+| 4 | Domain Events | §5.4 | ✅ |
+| 5 | Repository Protocol (interface in domain) | §5.5 | ✅ |
+| 6 | Repository Implementation (infrastructure) | §7.1 | ✅ |
+| 7 | Application Services as Orchestrators | §6, §11 | ✅ |
+| 8 | CQRS-lite (Commands vs Queries) | §6 | ✅ |
+| 9 | Composition Root / DI Wiring | §8 | ✅ |
+| 10 | Dependency Direction (inward only) | §4, §10 | ✅ |
+| 11 | Domain Services | §13 | ✅ |
+| 12 | Specifications (reusable predicates) | §14 | ✅ |
+| 13 | Anti-Corruption Layer (ACL) | §15 | ✅ |
+| 14 | Unit of Work | §16 | ✅ |
+| 15 | Domain Event Dispatching + Handlers | §17 | ✅ |
+| 16 | Shared Kernel | §18 | ✅ |
+| 17 | Testing Strategy (unit/integration/E2E) | §19 | ✅ |
+| 18 | Bounded Context Mapping | §20 | ✅ |
+| 19 | Factory Pattern | §21 | ✅ |
+| 20 | Outbox Pattern (reliable event delivery) | §22 | ✅ |
