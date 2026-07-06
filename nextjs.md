@@ -3993,3 +3993,1078 @@ export default function Page() {
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 26. Polyfill Implementations — Interview Deep Dive
+
+> These are the "write it from scratch on a whiteboard" questions that top companies (Google, Meta, Amazon, Flipkart, Atlassian) ask to test your understanding of React internals and JavaScript fundamentals.
+
+---
+
+### 26.1 Implement `useState`
+
+#### How React's useState Actually Works (Simplified)
+
+```javascript
+// React maintains a global array of state for each component.
+// Each useState call corresponds to an index in that array.
+// This is WHY hooks must be called in the same order every render (no conditionals).
+
+let componentStates = [];   // state storage
+let stateIndex = 0;         // which hook we're currently on
+let rerenderFn = null;      // function to trigger re-render
+
+function useState(initialValue) {
+  const currentIndex = stateIndex;  // capture for closure
+
+  // On first render: initialize. On re-render: read existing.
+  if (componentStates[currentIndex] === undefined) {
+    componentStates[currentIndex] = initialValue;
+  }
+
+  const state = componentStates[currentIndex];
+
+  function setState(newValue) {
+    // Support functional updates: setState(prev => prev + 1)
+    if (typeof newValue === 'function') {
+      componentStates[currentIndex] = newValue(componentStates[currentIndex]);
+    } else {
+      componentStates[currentIndex] = newValue;
+    }
+    // Trigger re-render
+    rerenderFn();
+  }
+
+  stateIndex++;  // move to next hook slot
+  return [state, setState];
+}
+
+// Before each render, reset the index (so hooks line up again)
+function render(Component, container) {
+  rerenderFn = () => render(Component, container);  // re-render = call render again
+  stateIndex = 0;  // reset hook index for this render pass
+
+  const output = Component();  // call component — hooks execute in order
+  container.innerHTML = '';
+  container.appendChild(output);
+}
+```
+
+#### Full Working Example
+
+```javascript
+// Complete mini-React with useState
+const React = (() => {
+  let hooks = [];
+  let idx = 0;
+  let rerender = null;
+
+  function useState(initial) {
+    const hookIdx = idx;
+    if (hooks[hookIdx] === undefined) {
+      hooks[hookIdx] = initial;
+    }
+    const setState = (value) => {
+      hooks[hookIdx] = typeof value === 'function'
+        ? value(hooks[hookIdx])
+        : value;
+      rerender();
+    };
+    idx++;
+    return [hooks[hookIdx], setState];
+  }
+
+  function render(Component) {
+    rerender = () => {
+      idx = 0;           // reset index before re-render
+      render(Component); // re-execute component
+    };
+    idx = 0;
+    const result = Component();
+    console.log(result);  // in real React: reconcile with DOM
+    return result;
+  }
+
+  return { useState, render };
+})();
+
+// Usage — works like real React!
+function Counter() {
+  const [count, setCount] = React.useState(0);
+  const [name, setName] = React.useState('World');
+
+  return {
+    count,
+    name,
+    increment: () => setCount(prev => prev + 1),
+    setName: (n) => setName(n),
+  };
+}
+
+React.render(Counter);
+// → { count: 0, name: 'World', ... }
+```
+
+#### Why Hooks MUST Be Called in Order
+
+```javascript
+// WRONG — conditional hook
+function BadComponent() {
+  if (someCondition) {
+    const [a, setA] = useState(0);  // index 0 sometimes
+  }
+  const [b, setB] = useState(0);    // index 0 or 1??? React breaks!
+}
+
+// React relies on call ORDER to match hook to state slot:
+// Render 1:  hooks[0] = a,  hooks[1] = b
+// Render 2:  (condition false) hooks[0] = b ???  ← MISMATCH!
+```
+
+---
+
+### 26.2 Implement `useEffect`
+
+```javascript
+const React = (() => {
+  let hooks = [];
+  let idx = 0;
+  let rerender = null;
+  let pendingEffects = [];  // effects to run after render
+
+  function useState(initial) {
+    const hookIdx = idx;
+    if (hooks[hookIdx] === undefined) {
+      hooks[hookIdx] = { state: initial };
+    }
+    const setState = (value) => {
+      hooks[hookIdx].state = typeof value === 'function'
+        ? value(hooks[hookIdx].state)
+        : value;
+      rerender();
+    };
+    idx++;
+    return [hooks[hookIdx].state, setState];
+  }
+
+  function useEffect(callback, deps) {
+    const hookIdx = idx;
+    const prevHook = hooks[hookIdx];
+
+    // Determine if effect should run
+    let shouldRun = false;
+
+    if (!prevHook) {
+      // First render — always run
+      shouldRun = true;
+    } else if (!deps) {
+      // No dependency array — run every render
+      shouldRun = true;
+    } else {
+      // Compare deps with previous deps
+      const prevDeps = prevHook.deps;
+      shouldRun = deps.some((dep, i) => !Object.is(dep, prevDeps[i]));
+    }
+
+    hooks[hookIdx] = { deps, cleanup: prevHook?.cleanup };
+
+    if (shouldRun) {
+      pendingEffects.push(() => {
+        // Run cleanup from previous effect first
+        if (hooks[hookIdx].cleanup) {
+          hooks[hookIdx].cleanup();
+        }
+        // Run new effect and store cleanup
+        const cleanup = callback();
+        hooks[hookIdx].cleanup = cleanup;  // cleanup can be undefined
+      });
+    }
+
+    idx++;
+  }
+
+  function render(Component) {
+    rerender = () => {
+      idx = 0;
+      pendingEffects = [];
+      render(Component);
+    };
+    idx = 0;
+    pendingEffects = [];
+
+    const result = Component();  // execute component (hooks run here)
+
+    // Run effects AFTER render (simulates React's behavior)
+    setTimeout(() => {
+      pendingEffects.forEach(effect => effect());
+    }, 0);
+
+    return result;
+  }
+
+  return { useState, useEffect, render };
+})();
+
+// Usage
+function Timer() {
+  const [count, setCount] = React.useState(0);
+
+  // Runs once (empty deps)
+  React.useEffect(() => {
+    console.log('Mounted!');
+    return () => console.log('Unmounted!');  // cleanup
+  }, []);
+
+  // Runs when count changes
+  React.useEffect(() => {
+    console.log(`Count changed to ${count}`);
+    const timer = setInterval(() => setCount(c => c + 1), 1000);
+    return () => clearInterval(timer);  // cleanup on re-run
+  }, [count]);
+
+  return { count };
+}
+
+React.render(Timer);
+```
+
+#### Key Points Interviewers Want to Hear
+
+```
+1. useEffect runs AFTER render (not during)
+2. Cleanup runs BEFORE the next effect (and on unmount)
+3. Empty deps [] = run once (mount only)
+4. No deps = run every render
+5. Deps comparison uses Object.is (shallow equality)
+6. Effects are queued and flushed asynchronously
+```
+
+---
+
+### 26.3 Implement `useRef`
+
+```javascript
+function useRef(initialValue) {
+  const hookIdx = idx;
+
+  if (hooks[hookIdx] === undefined) {
+    // Create a mutable object that persists across renders
+    hooks[hookIdx] = { current: initialValue };
+  }
+
+  idx++;
+  return hooks[hookIdx];  // same object reference every render
+}
+
+// Why useRef doesn't cause re-renders:
+// setState → updates hooks[idx] + calls rerender()
+// ref.current = x → just mutates the object (no rerender call)
+```
+
+#### useRef vs useState
+
+```javascript
+function Component() {
+  const [state, setState] = useState(0);  // change → re-render
+  const ref = useRef(0);                   // change → NO re-render
+
+  function handleClick() {
+    ref.current += 1;        // silent mutation, no render
+    setState(s => s + 1);    // triggers render
+    console.log(ref.current); // always latest value (no stale closure)
+  }
+}
+```
+
+---
+
+### 26.4 Implement `useMemo`
+
+```javascript
+function useMemo(factory, deps) {
+  const hookIdx = idx;
+  const prevHook = hooks[hookIdx];
+
+  let shouldRecompute = false;
+
+  if (!prevHook) {
+    shouldRecompute = true;  // first render
+  } else {
+    // Check if any dependency changed
+    shouldRecompute = deps.some((dep, i) => !Object.is(dep, prevHook.deps[i]));
+  }
+
+  if (shouldRecompute) {
+    const value = factory();  // compute new value
+    hooks[hookIdx] = { value, deps };
+  }
+
+  idx++;
+  return hooks[hookIdx].value;
+}
+
+// Usage
+function ExpensiveComponent({ items, filter }) {
+  const filtered = useMemo(() => {
+    // Only re-runs when items or filter changes
+    return items.filter(item => item.name.includes(filter));
+  }, [items, filter]);
+
+  return <List items={filtered} />;
+}
+```
+
+---
+
+### 26.5 Implement `useCallback`
+
+```javascript
+// useCallback is just useMemo that returns a function
+function useCallback(callback, deps) {
+  return useMemo(() => callback, deps);
+}
+
+// That's it. useCallback(fn, deps) === useMemo(() => fn, deps)
+```
+
+#### Why useCallback Exists
+
+```javascript
+// Without useCallback: new function created every render
+function Parent() {
+  const handleClick = () => { ... };  // new reference every render
+  return <Child onClick={handleClick} />;  // Child re-renders every time!
+}
+
+// With useCallback: same function reference unless deps change
+function Parent() {
+  const handleClick = useCallback(() => { ... }, []);  // stable reference
+  return <Child onClick={handleClick} />;  // Child only re-renders if deps change
+}
+```
+
+---
+
+### 26.6 Implement `useReducer`
+
+```javascript
+function useReducer(reducer, initialState) {
+  const hookIdx = idx;
+
+  if (hooks[hookIdx] === undefined) {
+    hooks[hookIdx] = initialState;
+  }
+
+  const state = hooks[hookIdx];
+
+  function dispatch(action) {
+    // Run reducer: (currentState, action) => newState
+    hooks[hookIdx] = reducer(hooks[hookIdx], action);
+    rerender();
+  }
+
+  idx++;
+  return [state, dispatch];
+}
+
+// Usage
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment': return { count: state.count + 1 };
+    case 'decrement': return { count: state.count - 1 };
+    case 'reset':     return { count: 0 };
+    default:          return state;
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = useReducer(reducer, { count: 0 });
+  return {
+    count: state.count,
+    increment: () => dispatch({ type: 'increment' }),
+    decrement: () => dispatch({ type: 'decrement' }),
+  };
+}
+```
+
+---
+
+### 26.7 Implement `useContext`
+
+```javascript
+// Simplified Context implementation
+function createContext(defaultValue) {
+  let contextValue = defaultValue;
+
+  function Provider({ value, children }) {
+    contextValue = value;  // override default with provided value
+    return children;
+  }
+
+  function useContext() {
+    return contextValue;  // return current context value
+  }
+
+  return { Provider, useContext, _getValue: () => contextValue };
+}
+
+// Usage
+const ThemeContext = createContext('light');
+
+function App() {
+  return ThemeContext.Provider({ value: 'dark', children: Button() });
+}
+
+function Button() {
+  const theme = ThemeContext.useContext();
+  return `<button class="${theme}">Click</button>`;
+}
+```
+
+#### Real React's Context (What Happens Under the Hood)
+
+```
+1. createContext creates a shared container
+2. Provider updates that container
+3. useContext reads from it
+4. When Provider's value changes → ALL consumers re-render
+   (This is why Context is bad for frequently changing values)
+```
+
+---
+
+### 26.8 Implement `debounce`
+
+```javascript
+function debounce(fn, delay) {
+  let timeoutId = null;
+
+  function debounced(...args) {
+    // Cancel previous timer
+    if (timeoutId) clearTimeout(timeoutId);
+
+    // Set new timer
+    timeoutId = setTimeout(() => {
+      fn.apply(this, args);
+      timeoutId = null;
+    }, delay);
+  }
+
+  debounced.cancel = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+
+  return debounced;
+}
+
+// Usage
+const debouncedSearch = debounce((query) => {
+  fetch(`/api/search?q=${query}`);
+}, 300);
+
+input.addEventListener('input', (e) => {
+  debouncedSearch(e.target.value);
+  // Only fires ONCE, 300ms after user STOPS typing
+});
+```
+
+#### useDebounce Hook
+
+```javascript
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(timer);  // cleanup on value change
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Usage in component
+function Search() {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
+
+  useEffect(() => {
+    if (debouncedQuery) {
+      fetch(`/api/search?q=${debouncedQuery}`);
+    }
+  }, [debouncedQuery]);
+
+  return <input onChange={e => setQuery(e.target.value)} />;
+}
+```
+
+---
+
+### 26.9 Implement `throttle`
+
+```javascript
+function throttle(fn, limit) {
+  let inThrottle = false;
+  let lastArgs = null;
+
+  function throttled(...args) {
+    if (!inThrottle) {
+      fn.apply(this, args);       // execute immediately
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+        if (lastArgs) {           // run trailing call if exists
+          throttled.apply(this, lastArgs);
+          lastArgs = null;
+        }
+      }, limit);
+    } else {
+      lastArgs = args;            // save latest args for trailing call
+    }
+  }
+
+  throttled.cancel = () => {
+    inThrottle = false;
+    lastArgs = null;
+  };
+
+  return throttled;
+}
+
+// Usage: fire at most once every 200ms
+const throttledScroll = throttle(() => {
+  console.log('Scroll position:', window.scrollY);
+}, 200);
+
+window.addEventListener('scroll', throttledScroll);
+```
+
+#### Debounce vs Throttle
+
+```
+debounce: "Wait until user STOPS, then fire once"
+  Input: ░░░░░░░░░░░░░░░░░|   (user types continuously)
+  Fires:                    ✓  (once, after 300ms silence)
+
+throttle: "Fire at most once every N ms, even while active"
+  Input: ░░░░░░░░░░░░░░░░░░░░░░░░
+  Fires: ✓     ✓     ✓     ✓     (every 200ms while scrolling)
+```
+
+---
+
+### 26.10 Implement `Promise.all`
+
+```javascript
+function promiseAll(promises) {
+  return new Promise((resolve, reject) => {
+    if (!Array.isArray(promises)) {
+      return reject(new TypeError('Argument must be an array'));
+    }
+
+    const results = new Array(promises.length);
+    let completedCount = 0;
+
+    if (promises.length === 0) {
+      return resolve([]);
+    }
+
+    promises.forEach((promise, index) => {
+      // Handle non-promise values (Promise.all([1, 2, 3]) should work)
+      Promise.resolve(promise)
+        .then(value => {
+          results[index] = value;  // maintain order!
+          completedCount++;
+
+          if (completedCount === promises.length) {
+            resolve(results);
+          }
+        })
+        .catch(error => {
+          reject(error);  // reject immediately on first failure
+        });
+    });
+  });
+}
+
+// Usage
+const results = await promiseAll([
+  fetch('/api/users'),
+  fetch('/api/posts'),
+  fetch('/api/comments'),
+]);
+// results = [usersResponse, postsResponse, commentsResponse]
+// If ANY fails → entire promiseAll rejects immediately
+```
+
+---
+
+### 26.11 Implement `Promise.allSettled`
+
+```javascript
+function promiseAllSettled(promises) {
+  return new Promise((resolve) => {
+    if (promises.length === 0) return resolve([]);
+
+    const results = new Array(promises.length);
+    let settledCount = 0;
+
+    promises.forEach((promise, index) => {
+      Promise.resolve(promise)
+        .then(value => {
+          results[index] = { status: 'fulfilled', value };
+        })
+        .catch(reason => {
+          results[index] = { status: 'rejected', reason };
+        })
+        .finally(() => {
+          settledCount++;
+          if (settledCount === promises.length) {
+            resolve(results);  // never rejects! waits for ALL to settle.
+          }
+        });
+    });
+  });
+}
+
+// Usage — useful when you don't want one failure to kill everything
+const results = await promiseAllSettled([
+  fetch('/api/users'),    // succeeds
+  fetch('/api/broken'),   // fails
+  fetch('/api/posts'),    // succeeds
+]);
+// results = [
+//   { status: 'fulfilled', value: Response },
+//   { status: 'rejected', reason: Error },
+//   { status: 'fulfilled', value: Response },
+// ]
+```
+
+---
+
+### 26.12 Implement `Array.prototype.map`
+
+```javascript
+Array.prototype.myMap = function(callback, thisArg) {
+  if (typeof callback !== 'function') {
+    throw new TypeError(`${callback} is not a function`);
+  }
+
+  const result = new Array(this.length);
+  for (let i = 0; i < this.length; i++) {
+    if (i in this) {  // handle sparse arrays: [1, , 3]
+      result[i] = callback.call(thisArg, this[i], i, this);
+    }
+  }
+  return result;
+};
+
+// Usage
+[1, 2, 3].myMap(x => x * 2);  // [2, 4, 6]
+```
+
+---
+
+### 26.13 Implement `Array.prototype.reduce`
+
+```javascript
+Array.prototype.myReduce = function(callback, initialValue) {
+  if (typeof callback !== 'function') {
+    throw new TypeError(`${callback} is not a function`);
+  }
+
+  let accumulator;
+  let startIndex;
+
+  if (initialValue !== undefined) {
+    accumulator = initialValue;
+    startIndex = 0;
+  } else {
+    if (this.length === 0) {
+      throw new TypeError('Reduce of empty array with no initial value');
+    }
+    accumulator = this[0];
+    startIndex = 1;
+  }
+
+  for (let i = startIndex; i < this.length; i++) {
+    if (i in this) {
+      accumulator = callback(accumulator, this[i], i, this);
+    }
+  }
+
+  return accumulator;
+};
+
+// Usage
+[1, 2, 3, 4].myReduce((sum, num) => sum + num, 0);  // 10
+```
+
+---
+
+### 26.14 Implement `Array.prototype.filter`
+
+```javascript
+Array.prototype.myFilter = function(callback, thisArg) {
+  if (typeof callback !== 'function') {
+    throw new TypeError(`${callback} is not a function`);
+  }
+
+  const result = [];
+  for (let i = 0; i < this.length; i++) {
+    if (i in this) {
+      if (callback.call(thisArg, this[i], i, this)) {
+        result.push(this[i]);
+      }
+    }
+  }
+  return result;
+};
+
+// Usage
+[1, 2, 3, 4, 5].myFilter(x => x > 3);  // [4, 5]
+```
+
+---
+
+### 26.15 Implement `Function.prototype.bind`
+
+```javascript
+Function.prototype.myBind = function(context, ...boundArgs) {
+  if (typeof this !== 'function') {
+    throw new TypeError('Bind must be called on a function');
+  }
+
+  const originalFn = this;
+
+  return function(...callArgs) {
+    // Handle: new (boundFn)() — if used as constructor
+    if (new.target) {
+      return new originalFn(...boundArgs, ...callArgs);
+    }
+    return originalFn.apply(context, [...boundArgs, ...callArgs]);
+  };
+};
+
+// Usage
+const obj = { name: 'Alice' };
+function greet(greeting, punctuation) {
+  return `${greeting}, ${this.name}${punctuation}`;
+}
+
+const boundGreet = greet.myBind(obj, 'Hello');
+boundGreet('!');  // "Hello, Alice!"
+```
+
+---
+
+### 26.16 Implement `Function.prototype.call` and `apply`
+
+```javascript
+Function.prototype.myCall = function(context, ...args) {
+  context = context ?? globalThis;  // null/undefined → global
+  context = Object(context);        // primitives → wrapped
+
+  const uniqueKey = Symbol('fn');   // avoid name collision
+  context[uniqueKey] = this;        // attach function to context
+  const result = context[uniqueKey](...args);  // call with context
+  delete context[uniqueKey];        // clean up
+  return result;
+};
+
+Function.prototype.myApply = function(context, argsArray = []) {
+  return this.myCall(context, ...argsArray);
+};
+
+// Usage
+function greet(greeting) { return `${greeting}, ${this.name}`; }
+greet.myCall({ name: 'Bob' }, 'Hi');    // "Hi, Bob"
+greet.myApply({ name: 'Bob' }, ['Hi']); // "Hi, Bob"
+```
+
+---
+
+### 26.17 Implement `deepClone`
+
+```javascript
+function deepClone(obj, seen = new WeakMap()) {
+  // Primitives and null
+  if (obj === null || typeof obj !== 'object') return obj;
+
+  // Handle circular references
+  if (seen.has(obj)) return seen.get(obj);
+
+  // Handle Date
+  if (obj instanceof Date) return new Date(obj.getTime());
+
+  // Handle RegExp
+  if (obj instanceof RegExp) return new RegExp(obj.source, obj.flags);
+
+  // Handle Map
+  if (obj instanceof Map) {
+    const mapClone = new Map();
+    seen.set(obj, mapClone);
+    obj.forEach((value, key) => {
+      mapClone.set(deepClone(key, seen), deepClone(value, seen));
+    });
+    return mapClone;
+  }
+
+  // Handle Set
+  if (obj instanceof Set) {
+    const setClone = new Set();
+    seen.set(obj, setClone);
+    obj.forEach(value => {
+      setClone.add(deepClone(value, seen));
+    });
+    return setClone;
+  }
+
+  // Handle Array and Object
+  const clone = Array.isArray(obj) ? [] : {};
+  seen.set(obj, clone);
+
+  for (const key of Object.keys(obj)) {
+    clone[key] = deepClone(obj[key], seen);
+  }
+
+  return clone;
+}
+
+// Usage
+const original = { a: 1, b: { c: [1, 2, { d: 3 }] }, date: new Date() };
+const cloned = deepClone(original);
+cloned.b.c[2].d = 999;
+console.log(original.b.c[2].d);  // still 3 — truly deep cloned
+```
+
+---
+
+### 26.18 Implement `EventEmitter` (Pub/Sub Pattern)
+
+```javascript
+class EventEmitter {
+  constructor() {
+    this.events = {};
+  }
+
+  on(event, listener) {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+    return this;  // chainable
+  }
+
+  off(event, listener) {
+    if (!this.events[event]) return this;
+    this.events[event] = this.events[event].filter(fn => fn !== listener);
+    return this;
+  }
+
+  once(event, listener) {
+    const wrapper = (...args) => {
+      listener.apply(this, args);
+      this.off(event, wrapper);
+    };
+    return this.on(event, wrapper);
+  }
+
+  emit(event, ...args) {
+    if (!this.events[event]) return false;
+    this.events[event].forEach(listener => listener.apply(this, args));
+    return true;
+  }
+
+  listenerCount(event) {
+    return this.events[event]?.length || 0;
+  }
+
+  removeAllListeners(event) {
+    if (event) {
+      delete this.events[event];
+    } else {
+      this.events = {};
+    }
+    return this;
+  }
+}
+
+// Usage
+const emitter = new EventEmitter();
+emitter.on('data', (msg) => console.log(`Received: ${msg}`));
+emitter.once('connect', () => console.log('Connected!'));
+emitter.emit('connect');  // "Connected!"
+emitter.emit('connect');  // nothing (once removed itself)
+emitter.emit('data', 'hello');  // "Received: hello"
+```
+
+---
+
+### 26.19 Implement `curry`
+
+```javascript
+function curry(fn) {
+  return function curried(...args) {
+    // If enough args, call original function
+    if (args.length >= fn.length) {
+      return fn.apply(this, args);
+    }
+    // Otherwise, return a function waiting for more args
+    return function(...nextArgs) {
+      return curried.apply(this, [...args, ...nextArgs]);
+    };
+  };
+}
+
+// Usage
+function add(a, b, c) { return a + b + c; }
+const curriedAdd = curry(add);
+
+curriedAdd(1)(2)(3);     // 6
+curriedAdd(1, 2)(3);     // 6
+curriedAdd(1)(2, 3);     // 6
+curriedAdd(1, 2, 3);     // 6
+```
+
+---
+
+### 26.20 Implement `flattenArray` (Deep)
+
+```javascript
+function flatten(arr, depth = Infinity) {
+  const result = [];
+
+  function helper(current, currentDepth) {
+    for (const item of current) {
+      if (Array.isArray(item) && currentDepth < depth) {
+        helper(item, currentDepth + 1);
+      } else {
+        result.push(item);
+      }
+    }
+  }
+
+  helper(arr, 0);
+  return result;
+}
+
+// Usage
+flatten([1, [2, [3, [4, [5]]]]]);        // [1, 2, 3, 4, 5]
+flatten([1, [2, [3, [4]]]], 1);          // [1, 2, [3, [4]]]
+flatten([1, [2, [3, [4]]]], 2);          // [1, 2, 3, [4]]
+
+// One-liner (recursive):
+const flat = (arr, d = Infinity) =>
+  d > 0 ? arr.reduce((acc, val) => acc.concat(Array.isArray(val) ? flat(val, d - 1) : val), []) : arr.slice();
+```
+
+---
+
+### 26.21 Implement `memoize`
+
+```javascript
+function memoize(fn) {
+  const cache = new Map();
+
+  function memoized(...args) {
+    const key = JSON.stringify(args);  // simple key strategy
+
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    return result;
+  }
+
+  memoized.cache = cache;  // expose for clearing
+  return memoized;
+}
+
+// Usage
+const expensiveCalc = memoize((n) => {
+  console.log('Computing...');
+  return n * n;
+});
+
+expensiveCalc(5);  // "Computing..." → 25
+expensiveCalc(5);  // → 25 (no "Computing..." — cached!)
+expensiveCalc(6);  // "Computing..." → 36
+```
+
+---
+
+### 26.22 Implement `React.memo` (Shallow Comparison HOC)
+
+```javascript
+function memo(Component, arePropsEqual) {
+  let prevProps = null;
+  let prevResult = null;
+
+  return function MemoizedComponent(props) {
+    // If props haven't changed, return cached result
+    if (prevProps !== null) {
+      const isEqual = arePropsEqual
+        ? arePropsEqual(prevProps, props)
+        : shallowEqual(prevProps, props);
+
+      if (isEqual) {
+        return prevResult;  // skip re-render!
+      }
+    }
+
+    prevProps = props;
+    prevResult = Component(props);
+    return prevResult;
+  };
+}
+
+function shallowEqual(objA, objB) {
+  if (Object.is(objA, objB)) return true;
+  if (typeof objA !== 'object' || typeof objB !== 'object') return false;
+  if (objA === null || objB === null) return false;
+
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
+
+  if (keysA.length !== keysB.length) return false;
+
+  return keysA.every(key => Object.is(objA[key], objB[key]));
+}
+
+// Usage
+const MemoizedList = memo(function List({ items }) {
+  console.log('List rendered');
+  return items.map(i => `<li>${i}</li>`).join('');
+});
+```
+
+---
+
+### Interview Quick Reference — What They Test
+
+| Polyfill | Tests Understanding Of |
+|---|---|
+| `useState` | Closures, React render cycle, hook ordering |
+| `useEffect` | Async execution, cleanup, dependency comparison |
+| `useRef` | Mutable containers, why no re-render |
+| `useMemo` / `useCallback` | Referential equality, memoization |
+| `useReducer` | State machines, pure functions |
+| `useContext` | Provider pattern, prop drilling alternative |
+| `debounce` / `throttle` | Closures, timers, performance |
+| `Promise.all` | Async coordination, error handling |
+| `Array.map/filter/reduce` | Higher-order functions, callbacks |
+| `bind/call/apply` | `this` binding, context |
+| `deepClone` | Recursion, type checking, circular refs |
+| `EventEmitter` | Observer pattern, memory leaks |
+| `curry` | Closures, partial application |
+| `memoize` | Caching strategy, pure functions |
+| `React.memo` | Shallow comparison, render optimization |
