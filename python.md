@@ -411,7 +411,6 @@ Python uses a **dual strategy** for memory management that's unique among major 
 - Both A and B have refcount 1 (from each other), so neither ever reaches 0.
 - Python's cyclic GC runs periodically to detect and collect these cycles.
 - It uses a **generational** approach: objects that survive longer are checked less often.
-- 
 
 **Why this matters for production:**
 - File handles, DB connections, and locks are freed deterministically via refcounting (when the last reference dies). This is why `with` statements (context managers) work reliably.
@@ -918,7 +917,241 @@ async def fan_out():
         tg.create_task(consumer(channel, "worker-3"))
 ```
 
-### 3.6 Threading vs Multiprocessing Decision Matrix
+### 3.6 Async Lock vs Local Lock (threading.Lock vs asyncio.Lock)
+
+#### The Theory — When and Why You Need Locks in Async Code
+
+**The fundamental question:** If asyncio is single-threaded, why do you need locks at all?
+
+**Answer:** Because `await` creates a gap. Between two awaits, another task CAN run and modify shared state.
+
+```
+WITHOUT lock (race condition even in single-threaded asyncio):
+
+balance = 100
+
+Task A:                          Task B:
+  bal = await get_balance()  →  (bal = 100)
+  [await suspends here]         
+                                  bal = await get_balance()  → (bal = 100)
+                                  new_bal = 100 - 80 = 20
+                                  await set_balance(20)      ← writes 20
+  new_bal = 100 - 70 = 30
+  await set_balance(30)          ← writes 30 (OVERWRITES the 20!)
+
+Result: Both withdrew ($80 + $70 = $150) from $100 account. Bug!
+
+The race happens because 'await get_balance()' suspends, letting Task B read
+the SAME old value before Task A writes its update.
+```
+
+**The 3 types of locks in Python:**
+
+| Lock Type | `threading.Lock` | `asyncio.Lock` | Distributed Lock (Redis) |
+|---|---|---|---|
+| **Scope** | Single process, multiple threads | Single process, single thread (multiple coroutines) | Multiple processes, multiple machines |
+| **Blocks** | The calling OS thread (truly sleeps) | Only the awaiting coroutine (event loop keeps running) | The calling coroutine/thread |
+| **Use when** | Multithreaded code, GIL not enough | Async code with shared mutable state | Microservices, horizontal scaling |
+| **Performance** | OS context switch overhead | Near-zero overhead (just queue manipulation) | Network round-trip (1-5ms) |
+| **Deadlock risk** | High (OS threads can truly deadlock) | Lower (cooperative, easier to reason about) | Medium (TTL prevents permanent deadlock) |
+
+**Critical difference — what "blocking" means:**
+
+```python
+import threading
+import asyncio
+
+# threading.Lock — BLOCKS THE ENTIRE THREAD
+lock = threading.Lock()
+lock.acquire()       # If another thread holds it, THIS thread freezes
+                     # No other code on this thread can run.
+                     # In asyncio: THIS FREEZES THE ENTIRE EVENT LOOP!
+lock.release()
+
+# asyncio.Lock — SUSPENDS ONLY THIS COROUTINE
+lock = asyncio.Lock()
+await lock.acquire() # If another coroutine holds it, only THIS coroutine waits.
+                     # The event loop continues running OTHER coroutines normally.
+                     # Other requests are still served!
+lock.release()
+```
+
+**Visual comparison:**
+
+```
+threading.Lock (BAD in async code):
+  Event Loop Thread: [Task A acquires lock] → [FROZEN — waiting for lock] → nothing else runs
+  All 10,000 connections: STUCK. Server appears dead.
+
+asyncio.Lock (CORRECT in async code):
+  Event Loop Thread: [Task A acquires lock] → [Task B awaits lock, suspended] → 
+                     [Task C runs normally] → [Task D runs normally] → [Task A releases] →
+                     [Task B resumes with lock]
+  Other connections: still being served normally ✓
+```
+
+#### Do You Need This in FastAPI? (Industry Reality)
+
+**Short answer:** Rarely. Most FastAPI endpoints are stateless.
+
+**When you DON'T need asyncio.Lock (99% of FastAPI code):**
+```python
+@app.post("/users/")
+async def create_user(user: UserCreate):
+    # Each request gets its own local variables.
+    # No shared mutable state between requests.
+    # Database handles concurrency with its own transactions.
+    result = await db.execute(insert(User).values(**user.dict()))
+    return {"id": result.inserted_primary_key[0]}
+# No lock needed — the database is the source of truth.
+```
+
+**When you DO need asyncio.Lock (rare but real cases):**
+
+```python
+import asyncio
+from fastapi import FastAPI
+
+app = FastAPI()
+
+# CASE 1: In-memory cache that's expensive to rebuild
+# Problem: If 100 requests hit an expired cache simultaneously,
+# all 100 will try to rebuild it (thundering herd).
+class CacheWithLock:
+    def __init__(self):
+        self._cache: dict[str, str] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._global_lock = asyncio.Lock()
+    
+    async def get_or_compute(self, key: str, compute_fn) -> str:
+        if key in self._cache:
+            return self._cache[key]
+        
+        # Get/create a per-key lock (prevents thundering herd)
+        async with self._global_lock:
+            if key not in self._locks:
+                self._locks[key] = asyncio.Lock()
+            lock = self._locks[key]
+        
+        async with lock:
+            # Double-check after acquiring lock (another task might have computed it)
+            if key in self._cache:
+                return self._cache[key]
+            
+            # Only ONE coroutine computes; others wait for the lock then get cached result
+            result = await compute_fn(key)
+            self._cache[key] = result
+            return result
+
+cache = CacheWithLock()
+
+@app.get("/expensive/{item_id}")
+async def get_expensive_data(item_id: str):
+    return await cache.get_or_compute(
+        item_id,
+        compute_fn=expensive_llm_call,  # Only called once even if 100 requests hit simultaneously
+    )
+
+
+# CASE 2: Rate limiter with in-memory token bucket
+# Problem: Multiple coroutines checking/decrementing tokens is a race condition.
+class InMemoryRateLimiter:
+    def __init__(self, max_tokens: int, refill_rate: float):
+        self._tokens = float(max_tokens)
+        self._max = max_tokens
+        self._rate = refill_rate
+        self._lock = asyncio.Lock()
+        self._last_refill = asyncio.get_event_loop().time()
+    
+    async def acquire(self) -> bool:
+        async with self._lock:  # Protects _tokens from concurrent modification
+            now = asyncio.get_event_loop().time()
+            elapsed = now - self._last_refill
+            self._tokens = min(self._max, self._tokens + elapsed * self._rate)
+            self._last_refill = now
+            
+            if self._tokens >= 1:
+                self._tokens -= 1
+                return True
+            return False
+
+
+# CASE 3: Singleton initialization (lazy loading)
+# Problem: Two requests arrive, both see model is None, both load it (expensive!)
+class ModelRegistry:
+    def __init__(self):
+        self._models: dict[str, object] = {}
+        self._lock = asyncio.Lock()
+    
+    async def get_model(self, name: str):
+        if name in self._models:
+            return self._models[name]
+        
+        async with self._lock:
+            if name in self._models:  # Double-check pattern
+                return self._models[name]
+            
+            # Heavy async initialization — only one coroutine does this
+            model = await load_model_from_s3(name)  # Takes 5-10 seconds
+            self._models[name] = model
+            return model
+```
+
+#### When Industry Uses What:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                    LOCK DECISION TREE FOR FastAPI                      │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Q: Is the shared state in a DATABASE (PostgreSQL, Redis)?           │
+│  YES → Use database transactions / Redis atomic ops. NO Python lock. │
+│        (This is 95% of cases in FastAPI)                             │
+│                                                                      │
+│  Q: Is it IN-MEMORY shared state (cache, counter, singleton)?        │
+│  YES → Use asyncio.Lock                                              │
+│        (Thundering herd prevention, lazy init, rate limiters)        │
+│                                                                      │
+│  Q: Are you running multiple PROCESSES (uvicorn --workers 4)?        │
+│  YES → asyncio.Lock only protects within ONE process.               │
+│        Use Redis/distributed lock for cross-process coordination.    │
+│                                                                      │
+│  Q: Are you running multiple SERVERS (Kubernetes, ECS)?              │
+│  YES → Only distributed locks (Redis/etcd) work.                    │
+│        asyncio.Lock is useless here — different machines.            │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Industry reality:**
+- **Stripe/Shopify:** Use database-level locking (SELECT FOR UPDATE) for financial ops. Distributed locks (Redis) for cross-service coordination.
+- **FastAPI apps at scale:** 99% of the time, the database handles concurrency. You almost never need `asyncio.Lock`.
+- **When you DO see asyncio.Lock:** Connection pool management, lazy singleton initialization, in-memory caches with thundering herd prevention, token bucket rate limiters.
+- **Anti-pattern:** Don't use `threading.Lock` in async code. It freezes the event loop.
+
+```python
+# ❌ NEVER DO THIS IN FASTAPI
+import threading
+lock = threading.Lock()
+
+@app.get("/data")
+async def get_data():
+    with lock:  # BLOCKS THE ENTIRE EVENT LOOP — all other requests freeze!
+        data = await fetch_from_db()
+    return data
+
+# ✅ CORRECT — use asyncio.Lock
+import asyncio
+lock = asyncio.Lock()
+
+@app.get("/data")
+async def get_data():
+    async with lock:  # Only THIS coroutine waits; others continue normally
+        data = await fetch_from_db()
+    return data
+```
+
+### 3.7 Threading vs Multiprocessing Decision Matrix
 
 ```python
 import asyncio
