@@ -36,53 +36,169 @@
 
 ### 1.1 How Transformers Work
 
+#### The Theory — What Problem Transformers Solve
+
+Before Transformers (2017), language models used RNNs/LSTMs which processed text **sequentially** — one word at a time, left to right. This had two fatal problems:
+1. **Slow training** — can't parallelize sequential processing across GPUs.
+2. **Long-range forgetting** — by the time the model reads word 500, it's "forgotten" word 1.
+
+Transformers solve both via **self-attention**: every token can directly attend to every other token in ONE step (not sequentially). This is O(1) "hops" to connect any two words, regardless of distance.
+
+**The core insight of attention:**
+When you read "The cat sat on the mat because **it** was tired", what does "it" refer to? Your brain ATTENDS to "cat" — you look back and find the relevant word. Self-attention is a mathematical way to do this: for each word, compute "how relevant is every other word to me?" and create a weighted blend.
+
+**The pipeline (GPT-style decoder-only model):**
+
 ```
-Input Text → Tokenization → Embedding → [Transformer Blocks × N] → Output Probabilities → Token Selection
+"The cat sat on"
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ TOKENIZATION                                                │
+│ "The" → 464, "cat" → 9246, "sat" → 3290, "on" → 319       │
+│ Breaks text into subwords (not characters, not full words)  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ EMBEDDING (lookup table: token_id → vector)                 │
+│ 464 → [0.12, -0.34, 0.89, ...] (512 or 4096 dimensions)   │
+│ Converts discrete tokens into continuous vector space       │
+│ + Positional encoding: adds position info (where in text)   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ TRANSFORMER BLOCKS × N (96 blocks in GPT-4)                 │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ Self-Attention: each token asks "what's relevant?"  │   │
+│   │   "it" attends strongly to "cat" (high score)       │   │
+│   │   "it" attends weakly to "the" (low score)          │   │
+│   └─────────────────────────────────────────────────────┘   │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ Feed-Forward Network: process each token's new repr │   │
+│   │   Adds "reasoning" capacity, pattern matching       │   │
+│   └─────────────────────────────────────────────────────┘   │
+│   (+ Layer Norm + Residual Connections for stability)        │
+│                                                             │
+│   Repeat N times → deeper understanding at each layer       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ OUTPUT HEAD                                                  │
+│ Final vector → probability distribution over ALL tokens     │
+│ P("the") = 0.35, P("mat") = 0.28, P("floor") = 0.12, ...  │
+│                                                             │
+│ Token selection (decoding strategy):                        │
+│   temperature=0: always pick highest probability (greedy)   │
+│   temperature=0.7: sample with moderate randomness          │
+│   top_p=0.9: consider only tokens in top 90% probability   │
+└─────────────────────────────────────────────────────────────┘
+       │
+       ▼
+Next token: "the" → append to input → repeat until done
 ```
 
-**Key Components:**
+**Key concepts to understand:**
+
+| Concept | What It Means | Analogy |
+|---|---|---|
+| Self-Attention | Every token computes relevance score with every other token | Looking at all words in a sentence to understand context |
+| Multi-Head | Multiple attention patterns computed in parallel | Reading the same sentence for grammar, meaning, reference, etc. simultaneously |
+| Causal Mask | Token can only attend to PREVIOUS tokens (not future) | Can't cheat by looking ahead when predicting next word |
+| Residual Connection | Output = input + attention_output | Prevents information loss in deep networks |
+| Layer Norm | Normalizes activations | Keeps values in stable range, faster training |
+
+#### The Code — Self-Attention Implementation
 
 ```python
-# Simplified self-attention mechanism
 import numpy as np
 
 def self_attention(query, key, value, mask=None):
     """
-    Scaled dot-product attention.
-    Q, K, V shapes: (seq_len, d_model)
+    Scaled dot-product attention — THE core operation of Transformers.
+    
+    Intuition:
+    - query (Q): "What am I looking for?" (what each token wants to know)
+    - key (K): "What do I contain?" (what each token advertises about itself)
+    - value (V): "What information do I actually provide?" (the actual content to blend)
+    
+    Process:
+    1. Q @ K^T = compatibility scores (how relevant is token j to token i?)
+    2. Scale by sqrt(d_k) to prevent softmax from becoming too peaked
+    3. Softmax normalizes scores to probabilities (sum to 1)
+    4. Weighted sum of V using these probabilities = attention output
+    
+    Shapes: Q, K, V are (seq_len, d_model). Output is (seq_len, d_model).
     """
-    d_k = query.shape[-1]
+    d_k = query.shape[-1]  # dimension of key vectors (e.g., 64)
     
-    # Attention scores: how much each token attends to every other
+    # Step 1: Compute attention scores (which tokens are relevant to each other?)
+    # Q @ K^T shape: (seq_len, seq_len) — a score for every pair of tokens
     scores = np.matmul(query, key.T) / np.sqrt(d_k)
+    # Divide by sqrt(d_k) because dot products grow with dimension,
+    # causing softmax to output extreme values (0.99 for one, 0.01 for rest)
+    # Scaling keeps gradients healthy during training.
     
+    # Step 2: Apply causal mask (for autoregressive generation)
     if mask is not None:
-        scores = scores + (mask * -1e9)  # Mask future tokens (causal)
+        scores = scores + (mask * -1e9)
+        # Mask sets future positions to -infinity
+        # After softmax, -infinity → 0 probability (can't attend to future)
+        # This is WHY GPT can only see text BEFORE current position
     
-    # Softmax → attention weights
+    # Step 3: Softmax — convert scores to probabilities
     attention_weights = softmax(scores, axis=-1)
+    # Each row sums to 1.0 — it's a probability distribution over all tokens
+    # High weight = "this token is very relevant to me"
     
-    # Weighted sum of values
+    # Step 4: Weighted blend of values
     output = np.matmul(attention_weights, value)
+    # Each token's output = weighted average of ALL tokens' values
+    # Weighted by how relevant each token was (attention_weights)
+    
     return output, attention_weights
 
-# Multi-head attention: parallel attention with different projections
+
 def multi_head_attention(x, num_heads=8, d_model=512):
-    """Each head learns different relationship patterns."""
-    d_k = d_model // num_heads
+    """
+    Multi-head attention — run self-attention MULTIPLE times in parallel.
+    
+    Why multiple heads?
+    - Head 1 might learn syntactic relationships ("the" → "cat" adjective agreement)
+    - Head 2 might learn semantic relationships ("it" → "cat" coreference)  
+    - Head 3 might learn positional patterns (adjacent words)
+    - Each head looks at the data from a different "perspective"
+    
+    It's like having 8 people read the same sentence, each paying attention to 
+    different aspects, then combining their understanding.
+    """
+    d_k = d_model // num_heads  # each head works with d_model/num_heads dimensions
+    # If d_model=512 and num_heads=8: each head works with 64 dimensions
+    # Total computation stays the same as single-head with full d_model
     
     heads = []
     for _ in range(num_heads):
-        Q = x @ W_q  # Linear projection
-        K = x @ W_k
-        V = x @ W_v
+        # Each head has its OWN learned projection matrices
+        # These are the LEARNED PARAMETERS of the model
+        Q = x @ W_q  # Project input into "query space" for this head
+        K = x @ W_k  # Project input into "key space" for this head  
+        V = x @ W_v  # Project input into "value space" for this head
         head_output, _ = self_attention(Q, K, V)
         heads.append(head_output)
     
-    # Concatenate all heads
-    concat = np.concatenate(heads, axis=-1)
-    return concat @ W_o  # Final linear projection
+    # Concatenate all heads' outputs and project back to d_model
+    concat = np.concatenate(heads, axis=-1)  # (seq_len, d_model)
+    return concat @ W_o  # Final learned linear projection to blend heads
 ```
+
+**Why this architecture dominated AI:**
+1. **Parallelizable** — every token computed simultaneously (unlike RNN's sequential processing)
+2. **Long-range** — token 1 can directly attend to token 10,000 (O(1) hops)
+3. **Scalable** — more parameters + more data = better results (scaling laws)
+4. **General** — same architecture works for text, code, images, audio, video
 
 ### 1.2 Tokenization
 
@@ -1154,6 +1270,76 @@ result = await app.ainvoke(Command(resume="yes"), config)
 
 ## 6. RAG (Retrieval Augmented Generation)
 
+#### The Theory — Why RAG Exists and What Problem It Solves
+
+**The fundamental problem with LLMs:**
+1. **Knowledge cutoff** — GPT-4 doesn't know about events after its training date.
+2. **Hallucination** — Ask about YOUR company's internal docs → LLM confidently invents answers.
+3. **No proprietary knowledge** — LLM was trained on public internet data, not your private database.
+4. **Stale information** — Product docs, pricing, policies change daily. Retraining costs millions.
+
+**The RAG solution:** Instead of fine-tuning the LLM with your data (expensive, slow, still hallucinates), RETRIEVE relevant documents at query time and include them in the prompt.
+
+```
+WITHOUT RAG:
+  User: "What's our refund policy?"
+  LLM: "Generally, companies offer 30-day refund..." ← HALLUCINATED generic answer
+
+WITH RAG:
+  User: "What's our refund policy?"
+  System: [searches your docs] → finds refund-policy.md
+  LLM prompt: "Based on this document: [refund-policy.md content]. Answer: What's our refund policy?"
+  LLM: "Per our policy, refunds are available within 14 days of purchase..." ← CORRECT, sourced
+```
+
+**The RAG pipeline (5 stages):**
+
+```
+INDEXING (one-time, offline):
+┌──────────────────────────────────────────────────────────────────────┐
+│ 1. LOAD: Read your documents (PDFs, docs, markdown, code, DB rows)  │
+│                                                                      │
+│ 2. SPLIT: Break into chunks (because LLM context is limited)         │
+│    "A 50-page doc" → ["chunk1 (500 words)", "chunk2", ..., "chunk100"]│
+│    Why? Because you can't fit ALL docs in the prompt. Only relevant  │
+│    chunks go in.                                                      │
+│                                                                      │
+│ 3. EMBED: Convert each chunk to a vector (list of ~1536 numbers)     │
+│    "Our refund policy allows..." → [0.12, -0.34, 0.56, ...]         │
+│    Similar meanings → similar vectors (cosine similarity)            │
+│                                                                      │
+│ 4. STORE: Save vectors in a vector database (Chroma, Pinecone, etc.) │
+│    Enables fast similarity search: "find chunks closest to query"    │
+└──────────────────────────────────────────────────────────────────────┘
+
+QUERYING (real-time, per request):
+┌──────────────────────────────────────────────────────────────────────┐
+│ 5. RETRIEVE + GENERATE:                                              │
+│    a. User asks: "What's our refund policy?"                         │
+│    b. Embed the question → [0.11, -0.33, 0.55, ...]                 │
+│    c. Search vector DB: find top-5 chunks most similar to question   │
+│    d. Stuff those chunks into the prompt as "context"                │
+│    e. LLM generates answer grounded in the retrieved context         │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Key decisions in RAG design:**
+
+| Decision | Options | Trade-off |
+|---|---|---|
+| Chunk size | 200-2000 tokens | Small = precise but missing context. Large = more context but noisy. |
+| Chunk overlap | 0-200 tokens | Overlap prevents splitting sentences across chunks |
+| Embedding model | OpenAI, Cohere, local | Quality vs cost vs privacy |
+| Vector DB | Chroma (simple), Pinecone (managed), Weaviate (hybrid) | Complexity vs features |
+| Retrieval count (k) | 3-10 chunks | More = more context but higher cost + noise |
+| Search type | Similarity, MMR, hybrid | Relevance vs diversity |
+
+**Why "chunking" is the hardest part of RAG:**
+- Split too small: "Our policy is..." in one chunk, "...14 days" in another → neither chunk is useful alone.
+- Split too big: Chunk contains 5 different topics → retrieval returns it for wrong reasons.
+- Split mid-sentence: Destroys meaning.
+- Best practice: Split by semantic boundaries (paragraphs, sections, headers) not arbitrary character counts.
+
 ### 6.1 Basic RAG Pipeline
 
 ```python
@@ -1806,6 +1992,73 @@ class CachedEmbeddings:
 
 ## 9. AI Agents & Tool Use
 
+#### The Theory — What Agents Are and Why They Matter
+
+**The problem with basic LLMs:** An LLM can only generate text. It cannot:
+- Check the current weather (no internet access)
+- Query your database (no DB connection)
+- Send an email (no API access)
+- Do math reliably (it predicts tokens, not computes)
+- Take actions in the real world
+
+**What an Agent is:** An LLM + a loop + tools. The LLM DECIDES which tool to call, with what inputs, observes the result, and decides what to do next — repeating until the task is complete.
+
+```
+Basic LLM:       Input → LLM → Output (one shot, done)
+
+Agent:           Input → LLM → "I need to search the DB" 
+                             → [calls DB tool] 
+                             → observes result 
+                             → "Now I need to calculate..."
+                             → [calls calculator tool]
+                             → observes result
+                             → "I have enough info"
+                             → Final Answer
+```
+
+**The ReAct pattern (Reasoning + Acting):**
+The most common agent architecture. The LLM follows a loop:
+1. **Thought** — reason about what to do next
+2. **Action** — choose a tool and inputs
+3. **Observation** — see the tool's output
+4. Repeat until confident in a final answer
+
+```
+User: "How much revenue did we make last quarter compared to the year before?"
+
+Agent thinks: "I need to query revenue for Q4 2024 and Q4 2023"
+Agent acts:   [calls SQL tool: "SELECT sum(revenue) FROM orders WHERE quarter='Q4-2024'"]
+Observation:  "$2.3M"
+Agent thinks: "Now I need Q4 2023"
+Agent acts:   [calls SQL tool: "SELECT sum(revenue) FROM orders WHERE quarter='Q4-2023'"]
+Observation:  "$1.8M"
+Agent thinks: "I can calculate the comparison now"
+Agent acts:   [calls calculator: "(2.3 - 1.8) / 1.8 * 100"]
+Observation:  "27.7%"
+Agent thinks: "I have all the information"
+Final Answer: "Revenue grew 27.7% YoY, from $1.8M in Q4 2023 to $2.3M in Q4 2024."
+```
+
+**Agent vs Chain:**
+- **Chain:** Pre-defined sequence of steps. Always runs the same way. Predictable.
+- **Agent:** Dynamic decision-making. LLM decides the steps at runtime. Flexible but less predictable.
+
+| Feature | Chain (LCEL) | Agent |
+|---|---|---|
+| Control flow | Fixed (you define steps) | Dynamic (LLM decides steps) |
+| Predictability | High (same input → same path) | Lower (LLM might take different paths) |
+| Debuggability | Easy (linear flow) | Harder (non-deterministic loops) |
+| Flexibility | Low (can't handle unexpected) | High (adapts to novel queries) |
+| Cost | Fixed (known # of LLM calls) | Variable (might loop 1-15 times) |
+| Use case | Well-defined tasks | Open-ended tasks, complex reasoning |
+
+**Key challenges with agents in production:**
+1. **Infinite loops** — agent keeps calling tools without converging → need max_iterations
+2. **Wrong tool selection** — agent calls wrong tool → need clear tool descriptions
+3. **Hallucinated tool inputs** — agent invents parameters → need input validation
+4. **Cost explosion** — 15 iterations × $0.03 per call = $0.45 per query → need budgets
+5. **Latency** — sequential tool calls mean 5-30 seconds per response → need streaming
+
 ### 9.1 ReAct Agent
 
 ```python
@@ -2033,6 +2286,66 @@ Provide a final comprehensive answer based on these results."""
 
 ## 10. MCP (Model Context Protocol)
 
+#### The Theory — What MCP Is and Why It Was Created
+
+**The problem before MCP:** Every AI application built its own custom integration layer. If you wanted Claude to access your database, you wrote custom code. If you also wanted GPT-4 to access it, you wrote DIFFERENT custom code. Every AI client × every data source = explosion of custom integrations.
+
+```
+Before MCP (N × M integrations):
+  Claude  ──custom code──→  PostgreSQL
+  Claude  ──custom code──→  Slack
+  Claude  ──custom code──→  GitHub
+  GPT-4   ──different code──→  PostgreSQL
+  GPT-4   ──different code──→  Slack
+  Cursor  ──different code──→  PostgreSQL
+  ...
+  = N clients × M data sources = N×M custom integrations
+```
+
+**MCP solution:** A standard protocol (like USB for AI). Build ONE MCP server for your data source, and ANY MCP-compatible AI client can use it.
+
+```
+After MCP (N + M integrations):
+  Claude  ──MCP──┐
+  GPT-4   ──MCP──┤──→  MCP Server (PostgreSQL)
+  Cursor  ──MCP──┘
+  
+  Claude  ──MCP──┐
+  GPT-4   ──MCP──┤──→  MCP Server (Slack)
+  Cursor  ──MCP──┘
+  
+  = N clients + M servers = N+M integrations (much less!)
+```
+
+**What MCP exposes (three primitives):**
+
+| Primitive | What It Is | Analogy | Example |
+|---|---|---|---|
+| **Tools** | Functions the AI can CALL (with input/output) | API endpoints | `query_database(sql)`, `send_email(to, body)` |
+| **Resources** | Data the AI can READ (like files/URLs) | GET endpoints | `file://config.yaml`, `db://users/schema` |
+| **Prompts** | Pre-built prompt templates | Stored procedures | "Summarize this PR", "Review this code" |
+
+**How it works at runtime:**
+
+```
+1. AI client connects to MCP server (via stdio or HTTP/SSE)
+2. Client asks: "What tools do you have?" → Server responds with tool list
+3. User asks AI: "What orders were placed today?"
+4. AI decides: "I should call the query_database tool"
+5. AI sends to MCP server: { tool: "query_database", input: { sql: "SELECT..." } }
+6. MCP server executes query, returns results
+7. AI uses results to formulate response to user
+```
+
+**MCP vs Function Calling:**
+- Function Calling (OpenAI): You define tools in YOUR code, the LLM decides when to call them, YOUR code executes them. All in one process.
+- MCP: Tools are defined in a SEPARATE server process. The AI client communicates with it over a protocol. Decouples tool implementation from AI client.
+
+**Why MCP matters for backend engineers:**
+- You build MCP servers to expose your company's internal systems to AI assistants.
+- Once built, any developer using Claude/Cursor/any MCP client can access your systems.
+- It's like building a REST API, but the consumer is an AI agent instead of a frontend app.
+
 ### 10.1 Understanding MCP
 
 ```
@@ -2041,11 +2354,15 @@ MCP Architecture:
 │   AI Client     │────▶│  MCP Server  │────▶│  Data Source    │
 │ (Claude, etc.)  │◀────│  (Your Code) │◀────│  (DB, API, FS)  │
 └─────────────────┘     └──────────────┘     └─────────────────┘
-                              │
-                              │ Exposes:
-                              ├── Tools (functions the AI can call)
-                              ├── Resources (data the AI can read)
-                              └── Prompts (templates for interactions)
+     │                        │
+     │ Standard protocol      │ Exposes:
+     │ (JSON-RPC over         ├── Tools (functions the AI can call)
+     │  stdio or HTTP/SSE)    ├── Resources (data the AI can read)
+     │                        └── Prompts (templates for interactions)
+     │
+     │ The client doesn't know HOW tools work internally.
+     │ It just knows: name, description, input schema, output.
+     │ (Same as how a browser doesn't know server implementation.)
 ```
 
 ### 10.2 Building an MCP Server
