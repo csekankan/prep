@@ -411,6 +411,7 @@ Python uses a **dual strategy** for memory management that's unique among major 
 - Both A and B have refcount 1 (from each other), so neither ever reaches 0.
 - Python's cyclic GC runs periodically to detect and collect these cycles.
 - It uses a **generational** approach: objects that survive longer are checked less often.
+- 
 
 **Why this matters for production:**
 - File handles, DB connections, and locks are freed deterministically via refcounting (when the last reference dies). This is why `with` statements (context managers) work reliably.
