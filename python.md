@@ -32,11 +32,51 @@
 
 ### 1.1 How Python Executes Code
 
-Python is a compiled language — it compiles source to bytecode, then interprets the bytecode.
+#### The Theory
+
+When you run `python script.py`, you're NOT running an interpreter that reads your code line by line like a shell script. Python is actually a **compiled language** — but it compiles to an intermediate representation (bytecode) rather than to machine code.
+
+**Why this matters for interviews:**
+- Python's "slowness" is NOT because it's interpreted — it's because bytecode runs on a virtual machine (VM) that processes one instruction at a time, with dynamic type dispatch on every operation.
+- Understanding this pipeline explains why tools like Cython (compiles to C) and PyPy (JIT-compiles bytecode to machine code) can give 10-100x speedups.
+- The `.pyc` files in `__pycache__/` ARE the compiled bytecode — Python caches them to skip re-compilation on subsequent runs.
+
+**The execution pipeline:**
 
 ```
-Source (.py) → AST → Bytecode (.pyc) → CPython VM (ceval.c)
+Source (.py)
+    │
+    ▼ [Lexer: tokenization]
+Tokens
+    │
+    ▼ [Parser: grammar rules]
+Abstract Syntax Tree (AST)
+    │
+    ▼ [Compiler: ast → bytecode]  ← This is the "compilation" step
+Code Object (bytecode + metadata)
+    │
+    ▼ [Saved to __pycache__/script.cpython-312.pyc]
+.pyc file
+    │
+    ▼ [CPython VM: ceval.c — a giant switch statement]
+Execution (one bytecode instruction at a time)
 ```
+
+**Key insight:** Each bytecode instruction is a simple operation (load a value, call a function, add two numbers). The VM's main loop in `ceval.c` is essentially:
+
+```
+while (1) {
+    opcode = NEXT_INSTRUCTION();
+    switch (opcode) {
+        case LOAD_FAST: push(local_vars[arg]); break;
+        case BINARY_ADD: right = pop(); left = pop(); push(left + right); break;
+        case CALL_FUNCTION: ... break;
+        // ~170 opcodes total
+    }
+}
+```
+
+#### The Code
 
 ```python
 import dis
@@ -47,74 +87,171 @@ def fibonacci(n):
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
-# View bytecode
+# dis.dis() disassembles a function into human-readable bytecode
+# This is what CPython ACTUALLY executes — not your source code
 dis.dis(fibonacci)
 ```
 
-Output:
-```
-  4           0 LOAD_FAST                0 (n)
-              2 LOAD_CONST               1 (1)
-              4 COMPARE_OP               1 (<=)
-              6 POP_JUMP_IF_FALSE       12
+Output explained:
 
-  5           8 LOAD_FAST                0 (n)
-             10 RETURN_VALUE
-
-  6     >>   12 LOAD_GLOBAL              0 (fibonacci)
-             14 LOAD_FAST                0 (n)
-             16 LOAD_CONST               1 (1)
-             18 BINARY_SUBTRACT
-             20 CALL_FUNCTION            1
-             22 LOAD_GLOBAL              0 (fibonacci)
-             24 LOAD_FAST                0 (n)
-             26 LOAD_CONST               2 (2)
-             28 BINARY_SUBTRACT
-             30 CALL_FUNCTION            1
-             32 BINARY_ADD
-             34 RETURN_VALUE
 ```
+  LINE    OFFSET  OPCODE              ARG  (HUMAN-READABLE ARG)
+
+  4           0 LOAD_FAST                0 (n)       ← push local var 'n' onto stack
+              2 LOAD_CONST               1 (1)       ← push constant 1 onto stack
+              4 COMPARE_OP               1 (<=)      ← pop both, compare, push True/False
+              6 POP_JUMP_IF_FALSE       12           ← if False, jump to offset 12
+
+  5           8 LOAD_FAST                0 (n)       ← push 'n' (the return value)
+             10 RETURN_VALUE                         ← return top of stack to caller
+
+  6     >>   12 LOAD_GLOBAL              0 (fibonacci) ← look up 'fibonacci' in global scope
+             14 LOAD_FAST                0 (n)         ← push n
+             16 LOAD_CONST               1 (1)         ← push 1
+             18 BINARY_SUBTRACT                        ← n - 1
+             20 CALL_FUNCTION            1             ← call fibonacci(n-1), push result
+             22 LOAD_GLOBAL              0 (fibonacci) ← look up 'fibonacci' again
+             24 LOAD_FAST                0 (n)         ← push n
+             26 LOAD_CONST               2 (2)         ← push 2
+             28 BINARY_SUBTRACT                        ← n - 2
+             30 CALL_FUNCTION            1             ← call fibonacci(n-2), push result
+             32 BINARY_ADD                             ← add the two results
+             34 RETURN_VALUE                           ← return sum to caller
+```
+
+**Why this matters:**
+- `LOAD_GLOBAL` is expensive — it searches the global dictionary every time. That's why `fibonacci` is looked up TWICE per call. Moving a frequently-called function to a local variable speeds things up.
+- `LOAD_FAST` is cheap — it's a direct array index into the local variables (that's why it's called "fast").
+- Every single `BINARY_ADD` must dynamically check types (is it int + int? str + str? custom __add__?) — this is the core reason Python is slow per-operation compared to C.
 
 ### 1.2 Python Object Model
 
-Every Python object is a C struct:
+#### The Theory
+
+In Python, **everything is an object** — integers, strings, functions, classes, modules, even `None`. This is not a metaphor. Every single value in Python is a heap-allocated C struct with at minimum two fields: a reference count and a type pointer.
+
+**Why this matters:**
+- An integer in C is 4-8 bytes. An integer in Python is 28+ bytes. This 4-7x overhead is the cost of "everything is an object."
+- Every time you write `x = 42`, Python allocates a PyObject on the heap, sets its type to `int`, sets its refcount to 1, and stores the value 42 inside.
+- This is why Python uses ~10-50x more memory than C for numeric workloads — and why NumPy (which stores raw C arrays) is essential for data science.
+
+**What every Python object contains (at the C level):**
 
 ```c
 // In CPython source: Include/object.h
+// This is the MINIMUM structure for ANY Python object
+
 typedef struct _object {
-    Py_ssize_t ob_refcnt;    // Reference count
-    PyTypeObject *ob_type;    // Pointer to type object
+    Py_ssize_t ob_refcnt;    // 8 bytes: how many variables point to this object
+                              // When it hits 0, object is immediately freed
+    PyTypeObject *ob_type;    // 8 bytes: pointer to the type (int, str, list, etc.)
+                              // This is how Python knows what methods an object has
 } PyObject;
+// Minimum: 16 bytes overhead for EVERY object (before any actual data)
 
 typedef struct {
-    PyObject ob_base;
-    Py_ssize_t ob_size;       // For variable-size objects
+    PyObject ob_base;         // 16 bytes: refcount + type
+    Py_ssize_t ob_size;       // 8 bytes: number of items (for lists, tuples, etc.)
 } PyVarObject;
+// Variable-size objects (str, list, tuple) need at least 24 bytes overhead
 ```
+
+**The memory cost of "everything is an object":**
 
 ```python
 import sys
 
-# Everything is an object with overhead
-sys.getsizeof(0)        # 28 bytes (int with value 0)
+# Compare Python object sizes to raw data sizes:
+# A C int is 4 bytes. A Python int:
+sys.getsizeof(0)        # 28 bytes (16 overhead + 4 value + padding)
 sys.getsizeof(1)        # 28 bytes
-sys.getsizeof("")       # 49 bytes (empty string)
-sys.getsizeof([])       # 56 bytes (empty list)
-sys.getsizeof({})       # 64 bytes (empty dict)
+sys.getsizeof(2**30)    # 32 bytes (large int needs more storage)
 
-# Integer interning: small ints (-5 to 256) are cached
+# A C char* "" is 1 byte. A Python str:
+sys.getsizeof("")       # 49 bytes (object header + hash + length + kind + ...)
+sys.getsizeof("hello")  # 54 bytes (49 + 5 chars)
+
+# An empty C array is 0 bytes. A Python list:
+sys.getsizeof([])       # 56 bytes (object header + pointer array preallocated)
+sys.getsizeof({})       # 64 bytes (object header + hash table structure)
+```
+
+**Integer interning — a CPython optimization:**
+
+```python
+# CPython pre-allocates integers from -5 to 256 at startup.
+# Every time you use 42, you get the SAME object (saves memory + allocation time).
 a = 256
 b = 256
-assert a is b  # True — same object
+assert a is b  # True — both point to the SAME pre-allocated int object
 
 a = 257
 b = 257
-assert a is not b  # True — different objects (outside cache)
+assert a is not b  # True — outside the cache, so two separate objects are created
+# NOTE: 'is' checks identity (same memory address), '==' checks value equality
+
+# This is a CPython implementation detail — NOT a language guarantee!
+# Don't rely on it in production code. Always use == for value comparison.
+```
+
+**Interview gotcha: `id()`, `is`, and `==`**
+
+```python
+# id(x) returns the memory address of the object
+# a is b  ←→  id(a) == id(b)  (same object in memory)
+# a == b  ←→  a.__eq__(b)     (same value, possibly different objects)
+
+a = [1, 2, 3]
+b = [1, 2, 3]
+print(a == b)   # True  (same value)
+print(a is b)   # False (different objects in memory)
+
+c = a
+print(a is c)   # True  (c points to the same list object as a)
+c.append(4)
+print(a)        # [1, 2, 3, 4] — same object, so a is also modified!
 ```
 
 ### 1.3 The Global Interpreter Lock (GIL)
 
-The GIL is a mutex that protects access to Python objects, preventing multiple threads from executing Python bytecode simultaneously.
+#### The Theory
+
+The GIL is the most misunderstood and most-asked topic in senior Python interviews. Here's the complete picture:
+
+**What it is:** The GIL is a single mutex (lock) inside the CPython interpreter. Only the thread holding the GIL can execute Python bytecode. Other threads are blocked — they exist but can't run Python code.
+
+**The fundamental problem it solves:** Python uses reference counting for memory management (`ob_refcnt` in every PyObject). Consider:
+
+```
+Thread A: x = some_object   →  ob_refcnt becomes 2 (one from thread A's assignment)
+Thread B: del x             →  ob_refcnt becomes 1
+                               But wait — what if Thread A and B modify refcnt simultaneously?
+                               Without locking: refcnt could become 0 incorrectly → object freed
+                               → Thread A accesses freed memory → SEGFAULT
+```
+
+The GIL prevents this by ensuring only one thread touches Python objects at a time.
+
+**Why not use per-object locks instead?**
+- Every `ob_refcnt += 1` would need a lock. That's millions of lock acquisitions per second.
+- Measured performance: per-object locking makes single-threaded code **2x slower** due to lock overhead.
+- The GIL makes single-threaded code FAST (no locking cost) at the expense of true parallelism.
+
+**The critical insight for interviews:**
+
+```
+Threads in Python ARE real OS threads.
+They DO run in parallel on different CPU cores.
+But the GIL means only ONE can execute Python bytecode at any time.
+
+HOWEVER: Threads release the GIL during I/O operations.
+So threads ARE useful for I/O-bound work (network, disk, sleep).
+They are NOT useful for CPU-bound work (number crunching).
+
+For CPU parallelism: use multiprocessing (separate processes, separate GILs).
+```
+
+#### The Code
 
 ```python
 import threading
@@ -125,7 +262,15 @@ counter = 0
 def increment():
     global counter
     for _ in range(1_000_000):
-        counter += 1  # NOT atomic: LOAD_FAST, LOAD_CONST, BINARY_ADD, STORE_FAST
+        counter += 1
+        # counter += 1 is NOT atomic! It compiles to FOUR bytecode instructions:
+        #   LOAD_GLOBAL    counter   ← read current value
+        #   LOAD_CONST     1         ← load 1
+        #   BINARY_ADD               ← compute counter + 1
+        #   STORE_GLOBAL   counter   ← write back
+        # The GIL can release BETWEEN any of these instructions!
+        # Thread A reads counter=100, Thread B reads counter=100,
+        # Both compute 101, both write 101. One increment is LOST.
 
 threads = [threading.Thread(target=increment) for _ in range(4)]
 for t in threads:
@@ -133,29 +278,60 @@ for t in threads:
 for t in threads:
     t.join()
 
-# counter will NOT be 4_000_000 — race condition despite GIL
-# GIL releases between bytecode instructions
-print(f"Counter: {counter}")  # Some value < 4_000_000
+# Expected: 4_000_000. Actual: some value < 4_000_000
+# This proves: the GIL does NOT make your code thread-safe!
+# The GIL prevents CRASHES (no segfaults) but NOT race conditions.
+print(f"Counter: {counter}")
 ```
 
-**Why the GIL exists:**
-- Simplifies memory management (reference counting is not thread-safe without it)
-- Makes C extensions simpler to write
-- Single-threaded performance is better with GIL than fine-grained locking
+**Why the GIL exists (trade-off summary):**
 
-**When GIL releases:**
-- I/O operations (file, network, sleep)
-- Every N bytecode instructions (sys.getswitchinterval() — default 5ms)
-- C extensions can explicitly release it
+| | With GIL | Without GIL (per-object locks) |
+|---|---|---|
+| Single-thread performance | Fast (no lock overhead) | ~2x slower |
+| C extension development | Simple (no thread worries) | Complex (must handle concurrency) |
+| Multi-thread CPU work | Serialized (useless) | True parallelism |
+| Multi-thread I/O work | Works great (GIL releases) | Works great |
+| Memory safety | Guaranteed | Must be manually ensured |
+
+**When the GIL releases (crucial for understanding when threads help):**
 
 ```python
 import sys
-print(sys.getswitchinterval())  # 0.005 (5ms)
 
-# C extensions release GIL for CPU work:
-# numpy operations release GIL
-# hashlib operations release GIL
-# zlib compression releases GIL
+# The GIL releases automatically in these situations:
+#
+# 1. I/O operations: file read/write, network send/recv, time.sleep()
+#    → This is why threads work great for web scraping, API calls, DB queries
+#
+# 2. Every N bytecode instructions (configurable):
+print(sys.getswitchinterval())  # 0.005 seconds (5ms)
+#    → Every 5ms, the running thread drops the GIL so others get a chance
+#    → This prevents one thread from starving others indefinitely
+#
+# 3. C extensions that explicitly release it:
+#    → numpy, hashlib, zlib, PIL all release the GIL during heavy computation
+#    → This is why numpy can use multiple cores despite the GIL
+#    → Pattern: Py_BEGIN_ALLOW_THREADS ... C code ... Py_END_ALLOW_THREADS
+```
+
+**When to use threads vs processes vs asyncio:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ I/O-bound (network, disk, API calls):                        │
+│   → asyncio (best: low overhead, thousands of connections)   │
+│   → threads (good: simpler code, limited by OS thread count) │
+│                                                              │
+│ CPU-bound (computation, data processing):                    │
+│   → multiprocessing (separate process = separate GIL)        │
+│   → C extension with GIL release (numpy, Cython)            │
+│   → Free-threading Python 3.13+ (experimental, no GIL)      │
+│                                                              │
+│ NEVER: threads for CPU-bound Python code                     │
+│   → Threads share the GIL, so CPU work is actually SLOWER   │
+│     than single-threaded (due to GIL contention overhead)    │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.4 Bytecode Optimization
@@ -218,15 +394,62 @@ show_frame()
 
 ## 2. Memory Management
 
+#### The Theory — How Python Manages Memory
+
+Python uses a **dual strategy** for memory management that's unique among major languages:
+
+**Strategy 1: Reference Counting (immediate, deterministic)**
+- Every object has a counter (`ob_refcnt`) tracking how many references point to it.
+- When a new variable points to the object: refcount increases.
+- When a variable is deleted or goes out of scope: refcount decreases.
+- When refcount hits 0: object is **immediately freed** (no waiting for GC).
+- This is DETERMINISTIC — you know exactly when memory is freed.
+- Compare to Java/Go: their garbage collectors run at unpredictable times.
+
+**Strategy 2: Cyclic Garbage Collector (periodic, for cycles)**
+- Reference counting has one fatal flaw: it can't handle cycles (A → B → A).
+- Both A and B have refcount 1 (from each other), so neither ever reaches 0.
+- Python's cyclic GC runs periodically to detect and collect these cycles.
+- It uses a **generational** approach: objects that survive longer are checked less often.
+
+**Why this matters for production:**
+- File handles, DB connections, and locks are freed deterministically via refcounting (when the last reference dies). This is why `with` statements (context managers) work reliably.
+- Memory leaks in Python are almost always caused by unintentional references (globals, caches, closures capturing large objects) that keep refcounts above 0.
+- If you disable the cyclic GC (`gc.disable()`), refcounting still works — you only leak cyclic garbage.
+
+**The memory layout:**
+
+```
+Python Process Memory:
+┌─────────────────────────────────────────────┐
+│  OS gives Python a heap                     │
+│  ┌───────────────────────────────────────┐  │
+│  │ pymalloc (objects ≤ 512 bytes)        │  │
+│  │  Arena (256KB) → Pool (4KB) → Block   │  │
+│  │  Handles: ints, strs, small lists     │  │
+│  └───────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────┐  │
+│  │ malloc (objects > 512 bytes)          │  │
+│  │  Large lists, numpy arrays, etc.      │  │
+│  └───────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────┐  │
+│  │ Free lists (recycled objects)         │  │
+│  │  Recently freed ints, floats, tuples  │  │
+│  │  Reused without calling malloc again  │  │
+│  └───────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
+
 ### 2.1 Reference Counting
 
 ```python
 import sys
 import ctypes
 
-# Reference count inspection
+# sys.getrefcount(x) returns the reference count of object x.
+# NOTE: it always shows +1 because passing x to the function creates a temporary reference.
 a = []
-print(sys.getrefcount(a))  # 2 (a + getrefcount's temporary reference)
+print(sys.getrefcount(a))  # 2 (one from 'a', one from getrefcount's parameter)
 
 b = a
 print(sys.getrefcount(a))  # 3
@@ -240,41 +463,72 @@ print(sys.getrefcount(a))  # 2
 
 ### 2.2 Cyclic Garbage Collector
 
-Reference counting can't handle cycles:
+#### The Theory
+
+Reference counting has one weakness: **circular references**. If A references B, and B references A, both have refcount ≥ 1 forever — even if no external code can reach them. They become unreachable garbage that refcounting can never free.
+
+**The generational hypothesis:** Most objects die young. An object that survives many GC passes is likely long-lived (e.g., a module-level cache). Checking long-lived objects repeatedly is wasteful.
+
+Python's cyclic GC uses three **generations**:
+- **Gen 0 (young):** Newly created objects. Collected most frequently.
+- **Gen 1 (middle):** Survived at least one Gen 0 collection.
+- **Gen 2 (old):** Survived at least one Gen 1 collection. Collected rarely.
+
+**How cycle detection works (simplified):**
+1. GC traverses all container objects (lists, dicts, instances — not ints/strings which can't form cycles).
+2. For each object, it temporarily decrements the refcount of everything it references.
+3. After traversal, objects with refcount 0 are unreachable (only reachable from the cycle itself).
+4. Those objects are freed.
 
 ```python
 import gc
 
-# Create a reference cycle
+# Create a reference cycle: A → B → A
 class Node:
     def __init__(self):
         self.ref = None
 
 a = Node()
 b = Node()
-a.ref = b
-b.ref = a
+a.ref = b    # a.ref points to b → b's refcount = 2
+b.ref = a    # b.ref points to a → a's refcount = 2
 
-# Delete external references
+# Delete the external references
 del a, b
-# Refcount for both is still 1 (they reference each other)
-# The cyclic GC will collect these
+# Now: a's refcount = 1 (only from b.ref)
+#      b's refcount = 1 (only from a.ref)
+# Neither will EVER reach 0 via refcounting alone!
+# The cyclic GC must detect this cycle and free both.
 
-# GC generations: 0 (young), 1 (middle), 2 (old)
-print(gc.get_threshold())  # (700, 10, 10)
-# Generation 0 collected every 700 allocations
-# Generation 1 collected every 10 gen-0 collections
-# Generation 2 collected every 10 gen-1 collections
+# GC generations — thresholds control how often each generation is collected
+print(gc.get_threshold())  # (700, 10, 10) means:
+# Gen 0: collected after 700 new allocations (very frequent)
+# Gen 1: collected every 10 Gen-0 collections (moderate)
+# Gen 2: collected every 10 Gen-1 collections (rare — roughly every 70,000 allocations)
 
-# Manual GC control
-gc.disable()    # Disable automatic GC (refcounting still works)
-gc.collect()    # Force a full collection
+# In production: you might tune these for latency-sensitive apps
+gc.set_threshold(1000, 15, 15)  # less frequent collection = fewer GC pauses
+
+# Manual GC control (useful in latency-critical paths)
+gc.disable()    # Disable cyclic GC (refcounting STILL works for non-cyclic objects)
+# ... do latency-sensitive work ...
+gc.collect()    # Force a full collection when you're ready for the pause
 gc.enable()
 
-# Debugging memory leaks
+# Debugging memory leaks — find uncollectable objects
 gc.set_debug(gc.DEBUG_LEAK)
 gc.collect()
-print(gc.garbage)  # Objects with __del__ that form cycles
+print(gc.garbage)  # Objects with __del__ that form cycles can't be safely collected
+# Python can't determine safe destruction order: if A.__del__ needs B, and B.__del__ needs A,
+# which runs first? Python gives up and puts them in gc.garbage for you to inspect.
+```
+
+**Production tip:** In web servers handling many requests, cyclic GC pauses can cause latency spikes. Some teams disable GC during request handling and run it between requests:
+
+```python
+gc.disable()
+handle_request()  # no GC pause during this
+gc.collect()      # collect between requests
 ```
 
 ### 2.3 Memory Allocator Architecture
@@ -381,33 +635,94 @@ print(sys.getsizeof(slotted))   # 48 bytes (no __dict__)
 
 ## 3. Advanced Concurrency
 
+#### The Theory — Why asyncio Exists and How It Works
+
+**The problem:** You have a web server handling 10,000 simultaneous connections. Each connection spends 95% of its time WAITING (for database responses, API calls, disk I/O). Only 5% is actual computation.
+
+**Solutions (from worst to best):**
+
+| Approach | Memory per connection | Max connections | Context switch cost |
+|---|---|---|---|
+| 1 process per connection (Apache) | ~10 MB | ~1,000 | Very high (OS) |
+| 1 thread per connection | ~1 MB | ~10,000 | High (OS kernel) |
+| asyncio (event loop) | ~1 KB | ~100,000+ | Nearly zero (userspace) |
+
+**How asyncio works conceptually:**
+
+```
+Traditional threading (preemptive):
+  OS decides when to switch threads. You have NO control.
+  Thread A running → [OS interrupts] → Thread B running → [OS interrupts] → ...
+
+asyncio (cooperative):
+  YOUR CODE decides when to yield. The event loop manages who runs next.
+  Task A runs → [hits 'await'] → yields to loop → Task B runs → [hits 'await'] → yields → ...
+  
+  The event loop is essentially:
+  while True:
+      ready_tasks = check_which_IO_operations_completed()
+      for task in ready_tasks:
+          run_task_until_next_await(task)
+```
+
+**Key mental model:**
+- `async def` defines a coroutine (a function that can be suspended and resumed).
+- `await` is a suspension point — "I need to wait for this; let someone else run."
+- The event loop is a scheduler — it decides which coroutine runs next (whichever is no longer waiting).
+- **NOTHING runs in parallel** — it's all on ONE thread. Concurrency ≠ parallelism.
+- This works because I/O waiting doesn't need CPU. While one task waits for a DB response, another can process the previous DB response.
+
+**The critical rule:** Never block the event loop. If you do `time.sleep(5)` instead of `await asyncio.sleep(5)`, ALL 10,000 connections are frozen for 5 seconds because the single thread is blocked.
+
 ### 3.1 asyncio Deep Dive
 
 ```python
 import asyncio
 from typing import AsyncIterator
 
-# The event loop is a single-threaded cooperative scheduler
-# Tasks voluntarily yield control at await points
-
 async def fetch_data(url: str, delay: float) -> dict:
-    """Simulate an I/O-bound operation."""
-    await asyncio.sleep(delay)  # Yields control to event loop
+    """Simulate an I/O-bound operation (like a DB query or API call).
+    
+    When 'await asyncio.sleep(delay)' executes:
+    1. This coroutine suspends itself
+    2. Control returns to the event loop
+    3. The event loop runs OTHER tasks that are ready
+    4. After 'delay' seconds, the event loop resumes THIS coroutine
+    """
+    await asyncio.sleep(delay)  # Yields control — this is the "cooperative" part
     return {"url": url, "status": 200}
 
 async def main():
-    # Concurrent execution — all run on same thread
+    # create_task() SCHEDULES the coroutine to run (doesn't run it yet).
+    # All three tasks are registered with the event loop.
     tasks = [
-        asyncio.create_task(fetch_data("https://api.example.com/1", 1.0)),
-        asyncio.create_task(fetch_data("https://api.example.com/2", 0.5)),
-        asyncio.create_task(fetch_data("https://api.example.com/3", 1.5)),
+        asyncio.create_task(fetch_data("https://api.example.com/1", 1.0)),  # will take 1.0s
+        asyncio.create_task(fetch_data("https://api.example.com/2", 0.5)),  # will take 0.5s
+        asyncio.create_task(fetch_data("https://api.example.com/3", 1.5)),  # will take 1.5s
     ]
     
-    # Wait for all — total time ≈ 1.5s (not 3.0s)
+    # gather() runs all tasks concurrently and waits for ALL to complete.
+    # Total time ≈ max(1.0, 0.5, 1.5) = 1.5s — NOT 1.0 + 0.5 + 1.5 = 3.0s
+    # Because while task 3 is sleeping for 1.5s, tasks 1 and 2 also sleep simultaneously.
     results = await asyncio.gather(*tasks)
     return results
 
+# asyncio.run() creates an event loop, runs main() until complete, then closes the loop.
 asyncio.run(main())
+```
+
+**Visual timeline of what happens:**
+
+```
+Time:  0.0s    0.5s    1.0s    1.5s
+       ─────┬──────┬──────┬──────┬
+Task 1:  [sleeping...........] done (1.0s)
+Task 2:  [sleeping...] done (0.5s)
+Task 3:  [sleeping..................] done (1.5s)
+
+All three sleep simultaneously because sleeping doesn't use CPU.
+Event loop just registers "wake task X at time Y" and moves on.
+Total wall-clock time: 1.5s (the longest single task).
 ```
 
 ### 3.2 Task Groups (Python 3.11+)
