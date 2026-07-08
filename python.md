@@ -2843,7 +2843,173 @@ async def place_order(session: AsyncSession, order: Order):
 
 ## 12. Distributed Systems Patterns
 
+#### The Theory — Building High-Throughput Scalable Systems
+
+This is the core knowledge that separates a senior engineer from a staff engineer. Every production system at scale must solve these fundamental challenges:
+
+**The 5 pillars of high-throughput systems:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   HIGH-THROUGHPUT SYSTEM DESIGN                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. HORIZONTAL SCALING                                              │
+│     "Add more machines, not bigger machines"                        │
+│     - Stateless services (any instance handles any request)         │
+│     - Load balancer distributes traffic (round-robin, least-conn)  │
+│     - Auto-scaling based on CPU/memory/queue depth                 │
+│     - Session affinity only when absolutely necessary              │
+│                                                                     │
+│  2. ASYNCHRONOUS PROCESSING                                        │
+│     "Don't make the user wait for non-critical work"               │
+│     - Message queues (Kafka, RabbitMQ, SQS)                       │
+│     - Background workers consume jobs at their own pace            │
+│     - Request: accept fast, process later (202 Accepted)           │
+│     - Decouples producers from consumers                          │
+│                                                                     │
+│  3. CACHING                                                        │
+│     "The fastest request is one you don't process"                 │
+│     - L1: In-process cache (dict, lru_cache) — ns latency         │
+│     - L2: Redis/Memcached — 1ms latency                          │
+│     - L3: CDN — serves from edge, 10ms globally                   │
+│     - Cache invalidation is the hard problem                       │
+│                                                                     │
+│  4. DATA PARTITIONING                                              │
+│     "No single database can hold everything"                       │
+│     - Sharding: split data across multiple DBs                    │
+│     - Partitioning: split table by range/hash                     │
+│     - Read replicas: separate read/write paths                    │
+│     - CQRS: different models for read vs write                    │
+│                                                                     │
+│  5. BACKPRESSURE & RESILIENCE                                      │
+│     "Protect yourself from being overwhelmed"                      │
+│     - Rate limiting: cap requests per user/IP/endpoint            │
+│     - Circuit breaker: stop calling failed services               │
+│     - Bulkhead: isolate failures (one bad service ≠ total crash)  │
+│     - Timeout + retry with exponential backoff                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Scaling a Python service from 100 to 100,000 RPS:**
+
+```
+Stage 1: Single server (100 RPS)
+┌───────────────────────────────┐
+│  Uvicorn (1 worker, asyncio)  │ → PostgreSQL
+└───────────────────────────────┘
+Problem: CPU-bound requests block the event loop.
+
+Stage 2: Multi-worker (500 RPS)  
+┌───────────────────────────────┐
+│  Uvicorn (4 workers = 4 processes) │ → PostgreSQL
+└───────────────────────────────┘
+Problem: Single DB is the bottleneck (connection limit ~100).
+
+Stage 3: Connection pooling + read replicas (2,000 RPS)
+┌───────────────────────────────┐
+│  Uvicorn (4 workers)          │ → PgBouncer → Primary (writes)
+│                               │            → Replica 1 (reads)
+│                               │            → Replica 2 (reads)
+└───────────────────────────────┘
+Problem: Single server's CPU/memory is maxed.
+
+Stage 4: Horizontal scaling + load balancer (10,000 RPS)
+                  ┌─── Server 1 (4 workers) ──┐
+Load Balancer ────┼─── Server 2 (4 workers) ──┼─→ DB cluster
+(Nginx/ALB)       └─── Server 3 (4 workers) ──┘
+                  + Redis (sessions, cache)
+                  + Auto-scaling group
+Problem: Some requests take 5s (ML inference, reports).
+
+Stage 5: Async processing + queues (50,000 RPS)
+                  ┌─── API Server (fast, <50ms) ──→ Redis cache
+Load Balancer ────┤                               ──→ Kafka/SQS
+                  └─── API Server                 
+                                                       ↓
+                                              Worker Pool (heavy tasks)
+                                              ├── ML inference workers
+                                              ├── Report generation workers
+                                              └── Notification workers
+Problem: Hot spots (viral content, flash sales).
+
+Stage 6: Full production (100,000+ RPS)
+CDN (static) → API Gateway (rate limit, auth)
+                    ↓
+              Service Mesh (Kubernetes)
+              ├── User Service (sharded by user_id)
+              ├── Order Service (partitioned by date)
+              ├── Search Service (Elasticsearch cluster)
+              └── ML Service (GPU instances, auto-scaled)
+              
+              All connected via:
+              - Kafka (async events)
+              - Redis Cluster (cache + sessions)
+              - PostgreSQL + read replicas (source of truth)
+```
+
+**Key metrics for high-throughput systems:**
+
+| Metric | What It Tells You | Target |
+|---|---|---|
+| **P50 latency** | Median response time | < 50ms for API |
+| **P99 latency** | Worst 1% response time | < 500ms |
+| **Throughput (RPS)** | Requests per second | Depends on SLA |
+| **Error rate** | % of 5xx responses | < 0.1% |
+| **Saturation** | CPU/memory/disk usage | < 80% (headroom for spikes) |
+| **Queue depth** | Pending async work | Should not grow continuously |
+
+**The CAP theorem (interview essential):**
+
+In a distributed system, you can only guarantee 2 out of 3:
+- **Consistency:** Every read returns the most recent write.
+- **Availability:** Every request gets a response (even if stale).
+- **Partition tolerance:** System works even if network splits between nodes.
+
+In practice, network partitions ALWAYS happen. So your real choice is:
+- **CP (Consistency + Partition tolerance):** Returns error if it can't confirm latest data. (PostgreSQL, MongoDB w/ majority reads)
+- **AP (Availability + Partition tolerance):** Always responds, may return stale data. (Cassandra, DynamoDB, DNS)
+
+Most web services choose **eventual consistency** (AP) for reads and **strong consistency** (CP) for writes.
+
+**Industry patterns for Python backends:**
+
+| Pattern | What It Solves | Python Implementation |
+|---|---|---|
+| Circuit Breaker | Stop calling a dead service | `circuitbreaker` lib or custom with Redis |
+| Retry with backoff | Transient failures | `tenacity` lib (exponential + jitter) |
+| Bulkhead | Isolate failure domains | Separate worker pools per dependency |
+| Rate Limiting | Prevent abuse, protect resources | Token bucket in Redis (`aioredis`) |
+| Saga | Distributed transactions | Orchestrator pattern (shown below) |
+| Idempotency | Safe retries for mutations | Idempotency key + dedup store |
+| CQRS | Separate read/write scaling | Different models/DBs for queries vs commands |
+| Event Sourcing | Audit trail + temporal queries | Append-only event log (Kafka/EventStore) |
+| Outbox | Reliable event publishing | Same-DB transaction (see DDD guide) |
+| Sidecar | Cross-cutting concerns | Envoy proxy, Dapr |
+
 ### 12.1 Saga Pattern
+
+#### The Theory
+
+In a monolith, you wrap multiple operations in a database transaction — if one fails, all roll back. In microservices, there's no single database transaction spanning multiple services. The **Saga pattern** replaces distributed transactions with a sequence of local transactions + compensating actions.
+
+```
+Saga: Place Order
+  Step 1: Reserve Inventory  (compensation: Release Inventory)
+  Step 2: Charge Payment     (compensation: Refund Payment)
+  Step 3: Create Order       (compensation: Cancel Order)
+  Step 4: Send Notification  (compensation: none — best effort)
+
+If Step 3 fails:
+  → Compensate Step 2: Refund Payment
+  → Compensate Step 1: Release Inventory
+  → Order never created — system is consistent (eventually)
+```
+
+Two styles:
+- **Choreography:** Each service publishes events, next service reacts. Simple but hard to track.
+- **Orchestration:** A central coordinator tells each service what to do. More control, easier debugging.
 
 ```python
 from dataclasses import dataclass, field
@@ -2935,6 +3101,34 @@ async def create_order_saga(order_data: dict):
 
 ### 12.2 Idempotency
 
+#### The Theory
+
+**Idempotency** = calling an operation multiple times produces the same result as calling it once.
+
+Why this matters for high-throughput systems:
+- Networks are unreliable. Clients retry. Load balancers retry. If "charge $50" is retried, you must NOT charge $100.
+- At 10K RPS, even 0.1% duplicate rate = 10 accidental double-charges per second.
+
+**How it works:**
+```
+Client sends: POST /payments  (Header: Idempotency-Key: "abc-123")
+
+Server logic:
+  1. Check Redis: Does key "abc-123" exist?
+  2. YES → return cached result (no re-processing)
+  3. NO  → process payment, store result under "abc-123", return result
+
+If client retries (network timeout, 502, etc.):
+  Same key "abc-123" → returns cached result → user charged exactly once ✓
+```
+
+**HTTP methods and idempotency:**
+- GET, PUT, DELETE are naturally idempotent (by HTTP spec)
+- POST is NOT idempotent → needs explicit idempotency keys
+- PATCH may or may not be (depends on implementation)
+
+**Industry practice:** Stripe, PayPal, and all payment APIs require `Idempotency-Key` header for mutations.
+
 ```python
 import hashlib
 import json
@@ -2995,6 +3189,40 @@ async def process_payment(request: Request, payment: PaymentRequest):
 ```
 
 ### 12.3 Distributed Locking
+
+#### The Theory
+
+In a single process, you use `threading.Lock()`. In a distributed system (multiple servers), you need a **distributed lock** — a lock that ALL servers respect.
+
+**Why you need it:**
+```
+Without distributed lock:
+  Server A reads balance = $100
+  Server B reads balance = $100   (race condition!)
+  Server A writes balance = $100 - $80 = $20
+  Server B writes balance = $100 - $80 = $20  (should have been $20 - $80 = DENIED)
+  Result: User withdrew $160 from $100 account. You lost $60.
+```
+
+**How Redis-based distributed lock works (Redlock simplified):**
+1. Generate unique token (UUID)
+2. `SET lock_key token NX EX 30` — atomically set only if not exists, expire in 30s
+3. If SET succeeded → you hold the lock
+4. Do your work
+5. Release: delete key ONLY if token matches (Lua script for atomicity)
+
+**The dangers:**
+- Lock expires while you're still working (solution: auto-renewal)
+- Redis crashes (solution: Redlock algorithm uses multiple Redis instances)
+- Process dies holding lock (solution: TTL ensures lock auto-expires)
+
+**When to use distributed locks vs alternatives:**
+| Approach | Use When | Example |
+|---|---|---|
+| Distributed lock | Need mutual exclusion across services | Balance deduction |
+| Optimistic locking | Conflicts are rare, reads >> writes | Updating a profile |
+| Database SERIALIZABLE | Need strict consistency, low throughput | Financial ledger entries |
+| Event sourcing | Need audit trail + conflict resolution | Collaborative editing |
 
 ```python
 import asyncio
@@ -3070,6 +3298,39 @@ async def process_withdrawal(user_id: str, amount: float):
 
 ### 12.4 Back-Pressure
 
+#### The Theory
+
+**Backpressure** = when a system is overwhelmed, it signals upstream to SLOW DOWN instead of crashing.
+
+Without backpressure:
+```
+Producer (10,000 req/s) → Consumer (5,000 req/s capacity)
+  After 1 second: 5,000 items backed up in memory
+  After 10 seconds: 50,000 items → OOM crash → total outage
+```
+
+With backpressure:
+```
+Producer (10,000 req/s) → Queue (max 1000) → Consumer (5,000 req/s)
+  Queue reaches 800 (high watermark) → signal producer to PAUSE
+  Queue drops to 300 (low watermark) → signal producer to RESUME
+  Result: Producer slows down. No crash. Some requests get 503 "try later".
+  Better: lose a few requests than crash and lose ALL requests.
+```
+
+**Backpressure strategies (from gentlest to harshest):**
+1. **Slow down:** Producer blocks until space is available (internal systems)
+2. **Shed load:** Return 503 immediately, client retries later (user-facing APIs)
+3. **Degrade quality:** Skip non-critical work (skip analytics, use cached responses)
+4. **Rate limit:** Hard cap on requests per second (global protection)
+5. **Circuit break:** Stop calling failed dependency entirely (cascade prevention)
+
+**Industry examples:**
+- Kafka: Consumer lag causes partition rebalancing (automatic backpressure)
+- TCP: Window-based flow control IS backpressure
+- Kubernetes HPA: Pod scaling IS a form of backpressure relief
+- Node.js streams: `pipe()` with `highWaterMark` implements backpressure
+
 ```python
 import asyncio
 from typing import AsyncIterator
@@ -3118,9 +3379,392 @@ class ThrottledClient:
         await self._client.aclose()
 ```
 
+### 12.5 Circuit Breaker
+
+#### The Theory
+
+**Circuit Breaker** = if a dependency is failing, STOP calling it (instead of wasting time waiting for timeouts).
+
+Named after electrical circuit breakers: when current is too high, the breaker "trips" and cuts the circuit to prevent fire.
+
+```
+State Machine:
+                    ┌─────────────────────────────────┐
+                    │                                   │
+                    ▼                                   │ (all attempts in half-open succeed)
+            ┌──────────────┐    (failures > threshold)  │
+            │    CLOSED    │ ──────────────────────┐   │
+            │ (normal flow)│                       │   │
+            └──────────────┘                       ▼   │
+                    ▲                      ┌────────────────┐
+                    │                      │     OPEN       │
+                    │                      │ (reject all)   │
+                    │                      └───────┬────────┘
+                    │                              │
+                    │         (timeout expires)    │
+                    │                              ▼
+                    │                      ┌────────────────┐
+                    └──────────────────────│  HALF-OPEN     │
+                      (attempt succeeds)   │ (try one req)  │
+                                          └────────────────┘
+                                                  │
+                                          (attempt fails)
+                                                  │
+                                                  ▼
+                                          Back to OPEN
+```
+
+**Without circuit breaker:**
+- Downstream service is down
+- Every request waits 30s for timeout → thread pool exhausted
+- Your service goes down too → cascading failure → entire system down
+
+**With circuit breaker:**
+- After 5 failures in 60s → circuit OPENS
+- All requests immediately get error (no waiting) → fast fail
+- After 30s → try ONE request (half-open)
+- If it works → circuit CLOSES (service is back)
+- If it fails → circuit stays OPEN (wait another 30s)
+
+**Key parameters:**
+- `failure_threshold`: How many failures before opening (typically 5-10)
+- `recovery_timeout`: How long to wait before trying again (typically 30-60s)
+- `success_threshold`: How many successes in half-open before closing (typically 2-3)
+
+```python
+import time
+from enum import Enum
+from typing import Callable, Any
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    """Prevents cascading failures by failing fast when a dependency is down."""
+    
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        success_threshold: int = 2,
+    ):
+        self._failure_threshold = failure_threshold
+        self._recovery_timeout = recovery_timeout
+        self._success_threshold = success_threshold
+        self._state = CircuitState.CLOSED
+        self._failure_count = 0
+        self._success_count = 0
+        self._last_failure_time = 0.0
+    
+    @property
+    def state(self) -> CircuitState:
+        if self._state == CircuitState.OPEN:
+            if time.monotonic() - self._last_failure_time >= self._recovery_timeout:
+                self._state = CircuitState.HALF_OPEN
+                self._success_count = 0
+        return self._state
+    
+    async def call(self, func: Callable, *args, **kwargs) -> Any:
+        """Execute function through circuit breaker."""
+        current_state = self.state
+        
+        if current_state == CircuitState.OPEN:
+            raise CircuitBreakerOpen(
+                f"Circuit is OPEN. Will retry after {self._recovery_timeout}s"
+            )
+        
+        try:
+            result = await func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+    
+    def _on_success(self):
+        if self._state == CircuitState.HALF_OPEN:
+            self._success_count += 1
+            if self._success_count >= self._success_threshold:
+                self._state = CircuitState.CLOSED
+                self._failure_count = 0
+        else:
+            self._failure_count = 0
+    
+    def _on_failure(self):
+        self._failure_count += 1
+        self._last_failure_time = time.monotonic()
+        
+        if self._failure_count >= self._failure_threshold:
+            self._state = CircuitState.OPEN
+
+# Usage with multiple services
+class ResilientServiceClient:
+    """Client that protects each downstream service with its own circuit breaker."""
+    
+    def __init__(self):
+        self._breakers = {
+            "payment": CircuitBreaker(failure_threshold=3, recovery_timeout=60),
+            "inventory": CircuitBreaker(failure_threshold=5, recovery_timeout=30),
+            "notification": CircuitBreaker(failure_threshold=10, recovery_timeout=10),
+        }
+    
+    async def charge_payment(self, amount: float):
+        return await self._breakers["payment"].call(
+            payment_api.charge, amount
+        )
+```
+
+### 12.6 Rate Limiting (Token Bucket Algorithm)
+
+#### The Theory
+
+**Rate limiting** = control how many requests a user/IP/service can make in a time window.
+
+**Why it's critical for high-throughput systems:**
+1. Prevents abuse (one user can't DoS your service)
+2. Protects downstream services (your DB can handle 10K QPS, not 100K)
+3. Fair resource sharing (all users get reasonable access)
+4. Cost control (expensive operations like LLM calls need hard limits)
+
+**Common algorithms:**
+
+| Algorithm | How It Works | Best For |
+|---|---|---|
+| **Token Bucket** | Tokens refill at fixed rate. Each request takes a token. | Smooth rate + burst allowed |
+| **Sliding Window** | Count requests in last N seconds. | Simple per-user limits |
+| **Leaky Bucket** | Fixed output rate regardless of input. | Constant-rate processing |
+| **Fixed Window** | Count requests per minute/hour. | Simple but has boundary spike problem |
+
+**Token Bucket — most popular (used by AWS, Stripe, OpenAI):**
+```
+Bucket capacity: 100 tokens
+Refill rate: 10 tokens/second
+
+Time 0: Bucket has 100 tokens
+  → Burst of 100 requests arrives → all pass (100 tokens consumed)
+  → Bucket now at 0 tokens
+
+Time 1s: 10 tokens refilled
+  → 10 more requests can pass
+
+Time 10s: Bucket refilled to 100
+  → Ready for another burst
+
+This allows: steady 10 req/s AND occasional bursts up to 100.
+```
+
+```python
+import time
+import asyncio
+from dataclasses import dataclass
+
+@dataclass
+class TokenBucket:
+    """Token bucket rate limiter — allows bursts while maintaining average rate."""
+    
+    capacity: int
+    refill_rate: float  # tokens per second
+    _tokens: float = 0
+    _last_refill: float = 0
+    
+    def __post_init__(self):
+        self._tokens = float(self.capacity)
+        self._last_refill = time.monotonic()
+    
+    def _refill(self):
+        now = time.monotonic()
+        elapsed = now - self._last_refill
+        self._tokens = min(
+            self.capacity,
+            self._tokens + elapsed * self.refill_rate,
+        )
+        self._last_refill = now
+    
+    def consume(self, tokens: int = 1) -> bool:
+        """Try to consume tokens. Returns True if allowed, False if rate limited."""
+        self._refill()
+        if self._tokens >= tokens:
+            self._tokens -= tokens
+            return True
+        return False
+
+class DistributedRateLimiter:
+    """Redis-based rate limiter for multi-server deployments.
+    
+    Uses sliding window counter for fairness across time boundaries.
+    """
+    
+    def __init__(self, redis, requests_per_minute: int = 60):
+        self._redis = redis
+        self._limit = requests_per_minute
+        self._window = 60  # seconds
+    
+    async def is_allowed(self, identifier: str) -> bool:
+        """Check if request from identifier is within rate limit.
+        
+        Uses Redis MULTI/EXEC for atomic sliding window:
+        1. Remove entries older than window
+        2. Count remaining entries
+        3. If under limit, add current timestamp
+        """
+        key = f"ratelimit:{identifier}"
+        now = time.time()
+        window_start = now - self._window
+        
+        pipe = self._redis.pipeline()
+        pipe.zremrangebyscore(key, 0, window_start)  # Remove old entries
+        pipe.zcard(key)                                # Count current entries
+        pipe.zadd(key, {str(now): now})               # Add this request
+        pipe.expire(key, self._window)                 # Auto-cleanup
+        
+        results = await pipe.execute()
+        request_count = results[1]
+        
+        if request_count >= self._limit:
+            await self._redis.zrem(key, str(now))  # Remove the one we just added
+            return False
+        
+        return True
+
+# Usage as FastAPI middleware
+from fastapi import Request, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        limiter = request.app.state.rate_limiter
+        identifier = request.client.host  # or user_id from JWT
+        
+        if not await limiter.is_allowed(identifier):
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded",
+                headers={"Retry-After": "60"},
+            )
+        
+        return await call_next(request)
+```
+
+### 12.7 Connection Pooling & Resource Management
+
+#### The Theory
+
+**Connection pooling** = reuse database/HTTP connections instead of creating new ones per request.
+
+Why this matters at scale:
+```
+Without pooling (10,000 RPS):
+  Each request: open TCP → TLS handshake → authenticate → query → close
+  Time per connection: ~20ms (just for setup!)
+  Connections open simultaneously: 10,000
+  PostgreSQL max_connections (default): 100
+  Result: "too many connections" error → service down
+
+With pooling (10,000 RPS):
+  Pool of 50 connections, reused across requests
+  Request: borrow connection → query (2ms) → return connection
+  Actual concurrent DB calls: 50 (well within limit)
+  Result: Handles 10K RPS with 50 connections ✓
+```
+
+**The connection pool lifecycle:**
+```
+Application startup:
+  → Create pool with min=10, max=50 connections
+  → Pre-warm 10 connections (ready immediately)
+
+Request arrives:
+  → Borrow connection from pool (wait if all busy)
+  → Execute query
+  → Return connection to pool (NOT closed, just returned)
+
+If pool is exhausted:
+  → Wait up to `pool_timeout` seconds
+  → If still no connection → raise error (backpressure!)
+
+Application shutdown:
+  → Close all connections gracefully
+```
+
+**Industry practice for PostgreSQL + Python:**
+```python
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+engine = create_async_engine(
+    "postgresql+asyncpg://user:pass@host/db",
+    pool_size=20,           # Steady-state connections
+    max_overflow=30,        # Extra connections under load (total max: 50)
+    pool_timeout=10,        # Wait 10s for connection, then error
+    pool_recycle=3600,      # Recycle connections every hour (prevents stale)
+    pool_pre_ping=True,     # Verify connection is alive before using
+    echo=False,             # No SQL logging in production
+)
+```
+
+**Rule of thumb:** `pool_size = (num_workers * 2) + 1` for CPU-bound, or `num_workers * 5` for I/O-bound.
+
 ---
 
 ## 13. Observability & Telemetry
+
+#### The Theory — You Can't Scale What You Can't Measure
+
+At scale, "why is it slow?" is the hardest question. Without proper observability, debugging a performance issue across 50 services with 100K RPS is impossible. You're flying blind.
+
+**The Three Pillars of Observability:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   OBSERVABILITY = 3 PILLARS                        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. LOGS (What happened?)                                        │
+│     - Structured JSON, not printf-style strings                  │
+│     - Correlated by request_id (trace across services)           │
+│     - Shipped to central store (ELK, Datadog, CloudWatch)        │
+│     - NEVER log secrets, PII, or full request bodies             │
+│                                                                  │
+│  2. METRICS (How is the system performing?)                      │
+│     - Counters: total requests, errors, cache hits               │
+│     - Gauges: current connections, queue depth, memory usage     │
+│     - Histograms: latency distribution (p50, p95, p99)           │
+│     - RED method: Rate, Errors, Duration                         │
+│     - USE method: Utilization, Saturation, Errors (for infra)    │
+│                                                                  │
+│  3. TRACES (Where did time go?)                                  │
+│     - Distributed tracing follows a request across services      │
+│     - Span = one unit of work (DB query, HTTP call, function)    │
+│     - Trace = tree of spans showing the full request lifecycle   │
+│     - Critical for: "why is this endpoint slow for 1% of users?" │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Why all three are needed:**
+- Metrics tell you "P99 latency spiked to 5s at 3:42 PM"
+- Traces tell you "the spike is in the payment service, specifically the fraud check"
+- Logs tell you "fraud service was retrying because third-party API returned 503"
+
+**Key metrics for high-throughput Python services (the RED method):**
+| Metric | Formula | Alert Threshold |
+|---|---|---|
+| Request Rate | requests/second per endpoint | Sudden drop > 50% |
+| Error Rate | 5xx responses / total responses | > 1% |
+| Duration (P50) | Median response time | > 100ms |
+| Duration (P99) | 99th percentile response time | > 1s |
+| Saturation | Active connections / max pool size | > 80% |
+
+**Industry tool choices:**
+| Tool | What It Does | When to Use |
+|---|---|---|
+| Prometheus + Grafana | Metrics collection + visualization | Open-source, self-hosted |
+| Datadog | All-in-one (logs, metrics, traces, APM) | Enterprise, managed |
+| OpenTelemetry | Vendor-neutral instrumentation | Always (future-proof) |
+| Sentry | Error tracking + performance | Application errors |
+| PagerDuty/OpsGenie | Alert routing + on-call | Incident management |
 
 ### 13.1 Structured Logging with structlog
 
@@ -4596,6 +5240,98 @@ Hybrid (common in production):
 
 ---
 
+## 19. High-Throughput System Design Checklist (Interview + Production)
+
+#### The Theory — How to Think About System Design
+
+When asked "Design a system that handles X million requests per day," here's the mental framework:
+
+**Step 1: Back-of-the-envelope calculations**
+```
+Given: 10 million requests per day
+
+Requests per second:
+  10,000,000 / 86,400 ≈ 115 RPS (average)
+  Peak (assume 3x average): ~350 RPS
+  
+Storage per year (if each request creates 1KB record):
+  10M × 1KB × 365 = 3.65 TB/year
+  
+Bandwidth:
+  350 RPS × 5KB (avg response) = 1.75 MB/s outbound
+```
+
+**Step 2: Choose architecture based on scale**
+```
+< 100 RPS:          Single server, monolith, PostgreSQL ✓
+100 - 1,000 RPS:    Multiple workers, read replicas, Redis cache
+1,000 - 10,000 RPS: Load balancer, horizontal scaling, message queue
+10,000 - 100,000:   Microservices, sharding, CDN, auto-scaling
+> 100,000 RPS:      Event-driven, CQRS, specialized data stores, edge computing
+```
+
+**Step 3: Design for the hard problems**
+
+| Problem | Solution Pattern | When to Apply |
+|---|---|---|
+| Hot spots (viral content) | Cache + CDN + sharding by hash | Social media, e-commerce |
+| Consistency across services | Saga + event sourcing | Financial, inventory |
+| Burst traffic (flash sales) | Queue + rate limit + auto-scale | E-commerce, ticketing |
+| Global latency | Multi-region + eventual consistency | SaaS, streaming |
+| Data growth | Partitioning + archival + data lakes | Analytics, IoT |
+| Single point of failure | Redundancy + health checks + failover | Everything production |
+
+**The complete high-throughput checklist:**
+
+```
+BEFORE PRODUCTION LAUNCH:
+□ Load tested to 3x expected peak
+□ Circuit breakers on all external dependencies
+□ Rate limiting on all public endpoints
+□ Health checks (liveness + readiness)
+□ Graceful shutdown (drain connections before exit)
+□ Connection pooling for DB + HTTP clients
+□ Structured logging with correlation IDs
+□ P50/P95/P99 latency dashboards
+□ Error rate alerts (PagerDuty/OpsGenie)
+□ Auto-scaling configured (CPU > 70% → scale up)
+
+SCALING CHECKPOINTS:
+□ 100 RPS: Add Redis caching for hot paths
+□ 500 RPS: Move to async workers for heavy tasks
+□ 1K RPS: Add read replicas, connection pooler (PgBouncer)
+□ 5K RPS: Horizontal scaling, stateless services
+□ 10K RPS: CDN for static, message queue for async
+□ 50K RPS: Sharding, microservices, CQRS
+□ 100K+ RPS: Edge computing, custom solutions
+
+RESILIENCE CHECKLIST:
+□ Retry with exponential backoff + jitter
+□ Circuit breaker per dependency (5 failures → open)
+□ Bulkhead (separate thread/process pools)
+□ Timeout on every external call (never wait forever)
+□ Graceful degradation (serve stale cache when DB is down)
+□ Chaos testing (Netflix Chaos Monkey approach)
+□ Disaster recovery plan tested quarterly
+```
+
+**Python-specific performance tips for high throughput:**
+
+| Technique | Improvement | Implementation |
+|---|---|---|
+| `uvloop` | 2-3x faster event loop | `uvicorn --loop uvloop` |
+| `orjson` | 10x faster JSON serialization | `response_class=ORJSONResponse` |
+| Connection pooling | 50x fewer DB connections | SQLAlchemy `pool_size=20` |
+| `__slots__` | 3x less memory per object | On hot data classes |
+| asyncio gather | Parallel I/O (not sequential) | `await asyncio.gather(a(), b(), c())` |
+| Pydantic v2 | 5-50x faster validation | Upgrade from v1 |
+| `lru_cache` | Skip repeated computation | Pure functions with hashable args |
+| Streaming responses | Constant memory usage | `StreamingResponse` for large payloads |
+| Background tasks | Don't block the response | `BackgroundTasks.add_task()` |
+| Compiled regex | 10x faster pattern matching | `re.compile()` at module level |
+
+---
+
 ## Recommended Reading Order
 
 1. **Week 1-2**: Sections 1-2 (Internals, Memory)
@@ -4605,7 +5341,7 @@ Hybrid (common in production):
 5. **Week 9-10**: Sections 10-11 (Database, Events)
 6. **Week 11-12**: Sections 12-13 (Distributed Systems, Observability)
 7. **Week 13-14**: Sections 14-15 (Testing, Security)
-8. **Week 15-16**: Sections 16-18 (Tooling, Deployment, Interview)
+8. **Week 15-16**: Sections 16-19 (Tooling, Deployment, Interview, System Design)
 
 ---
 
