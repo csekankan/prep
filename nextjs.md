@@ -31,6 +31,9 @@
 23. [Important Libraries Ecosystem](#23-important-libraries-ecosystem)
 24. [Interview Critical Concepts](#24-interview-critical-concepts)
 25. [Common Mistakes and Gotchas](#25-common-mistakes-and-gotchas)
+26. [AWS Deployment Strategy — SSG, CSR, SSR, ISR, Streaming](#26-aws-deployment-strategy--ssg-csr-ssr-isr-streaming)
+27. [Micro-Frontends with Next.js](#27-micro-frontends-with-nextjs)
+28. [Deployment Best Practices — Industry Level](#28-deployment-best-practices--industry-level)
 
 ---
 
@@ -5068,3 +5071,1010 @@ const MemoizedList = memo(function List({ items }) {
 | `curry` | Closures, partial application |
 | `memoize` | Caching strategy, pure functions |
 | `React.memo` | Shallow comparison, render optimization |
+
+---
+
+## 26. AWS Deployment Strategy — SSG, CSR, SSR, ISR, Streaming
+
+### The Core Problem
+
+Next.js was designed for Vercel. On AWS, **you must map each rendering strategy to the right AWS service** — there's no single "deploy" button.
+
+```
+Rendering Strategy → AWS Service Mapping
+
+SSG  (static HTML at build)     → S3 + CloudFront
+CSR  (client-side only)         → S3 + CloudFront
+SSR  (server per request)       → Lambda / ECS / Fargate
+ISR  (static + revalidation)    → Lambda + S3 + CloudFront invalidation
+Streaming SSR                   → Lambda (response streaming) / ECS
+API Routes                      → Lambda / API Gateway / ALB + ECS
+```
+
+---
+
+### Option 1: OpenNext + SST (Recommended for Serverless)
+
+OpenNext is the industry standard for deploying Next.js on AWS serverlessly. It breaks Next.js into separate AWS primitives.
+
+```
+┌────────────────────────────────────────────────────┐
+│                    CloudFront CDN                   │
+│            (caches SSG, ISR, static assets)         │
+└─────────┬──────────────┬───────────────┬───────────┘
+          │              │               │
+     ┌────▼────┐   ┌─────▼─────┐   ┌────▼────────┐
+     │   S3    │   │  Lambda   │   │  Lambda@Edge │
+     │ Bucket  │   │ (server)  │   │ (middleware)  │
+     │         │   │           │   │               │
+     │ - SSG   │   │ - SSR     │   │ - redirects   │
+     │ - CSR   │   │ - API     │   │ - headers     │
+     │ - ISR   │   │ - ISR     │   │ - auth checks │
+     │   cache │   │   reval.  │   │               │
+     └─────────┘   └─────┬─────┘   └───────────────┘
+                         │
+                   ┌─────▼─────┐
+                   │   SQS     │
+                   │ (ISR      │
+                   │  revalid. │
+                   │  queue)   │
+                   └───────────┘
+```
+
+#### Setup with SST (Serverless Stack)
+
+```bash
+# Initialize SST in your Next.js project
+npx sst@latest init
+```
+
+```typescript
+// sst.config.ts
+export default {
+  config() {
+    return {
+      name: "my-nextjs-app",
+      region: "us-east-1",
+    };
+  },
+  stacks(app) {
+    app.stack(function Site({ stack }) {
+      const site = new NextjsSite(stack, "site", {
+        // custom domain
+        customDomain: {
+          domainName: "app.example.com",
+          hostedZone: "example.com",
+        },
+        // environment variables
+        environment: {
+          DATABASE_URL: process.env.DATABASE_URL,
+          NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+        },
+        // warm Lambda to avoid cold starts
+        warm: 5,
+      });
+
+      stack.addOutputs({
+        URL: site.customDomainUrl || site.url,
+      });
+    });
+  },
+};
+```
+
+```bash
+npx sst deploy --stage production
+```
+
+**What SST/OpenNext does under the hood:**
+
+```
+npm run build
+     │
+     ▼
+OpenNext splits the build output:
+     │
+     ├── Static assets (.js, .css, images)  → S3 bucket
+     ├── SSG/ISR pre-rendered HTML           → S3 bucket
+     ├── Server function (SSR + API routes)  → Lambda function
+     ├── ISR revalidation worker             → Lambda + SQS
+     ├── Image optimization                  → Lambda function
+     └── Middleware                           → Lambda@Edge / CloudFront Function
+```
+
+---
+
+### Option 2: AWS Amplify Hosting (Managed — Less Control)
+
+```bash
+# Install Amplify CLI
+npm install -g @aws-amplify/cli
+
+# Connect to your repo
+amplify init
+amplify add hosting
+amplify publish
+```
+
+Or just connect your GitHub repo in the Amplify Console — it auto-detects Next.js and deploys.
+
+```
+Amplify Hosting handles:
+  ✓ SSR  — runs on Lambda behind CloudFront
+  ✓ SSG  — served from CloudFront cache
+  ✓ ISR  — supported with revalidation
+  ✓ API routes — Lambda functions
+  ✗ Streaming SSR — limited support
+  ✗ Fine-grained Lambda config — no control
+```
+
+**When to use Amplify:** small-medium apps, teams that want zero infrastructure management, prototypes.
+
+**When NOT to use Amplify:** need fine-grained control, multi-region, large-scale ISR, streaming SSR.
+
+---
+
+### Option 3: Docker on ECS/Fargate (Full Server — Most Control)
+
+Best when you need a persistent Node.js server (streaming SSR, WebSockets, long-running processes).
+
+```dockerfile
+# Dockerfile (same as the one in Section 21)
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+```
+Architecture:
+
+┌──────────────────────────────────────────┐
+│              CloudFront CDN              │
+│     (cache static assets + SSG pages)    │
+└──────────────────┬───────────────────────┘
+                   │
+          ┌────────▼────────┐
+          │   ALB (Load     │
+          │   Balancer)     │
+          └───┬─────────┬───┘
+              │         │
+        ┌─────▼───┐ ┌───▼─────┐
+        │  ECS    │ │  ECS    │
+        │ Task 1  │ │ Task 2  │   ← auto-scaling
+        │ (Next)  │ │ (Next)  │
+        └─────────┘ └─────────┘
+```
+
+```yaml
+# docker-compose.yml for local testing
+version: '3.8'
+services:
+  nextjs:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/app
+      - NEXTAUTH_SECRET=my-secret
+```
+
+**ECS Task Definition (key parts):**
+
+```json
+{
+  "family": "nextjs-app",
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "nextjs",
+      "image": "123456789.dkr.ecr.us-east-1.amazonaws.com/nextjs-app:latest",
+      "portMappings": [{ "containerPort": 3000 }],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      },
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:us-east-1:123:parameter/db-url" }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### Rendering Strategy → AWS Mapping (Decision Table)
+
+| Rendering | AWS Services | Cost Model | Cold Start? | Best For |
+|---|---|---|---|---|
+| **SSG** | S3 + CloudFront | Cheapest (pennies) | No | Blog, docs, marketing |
+| **CSR** | S3 + CloudFront | Cheapest (pennies) | No | Admin panels, SPAs |
+| **SSR** | Lambda + API GW | Pay-per-request | Yes (~200-500ms) | Personalized pages |
+| **SSR** | ECS/Fargate | Always-on cost | No | High traffic, WebSocket |
+| **ISR** | Lambda + S3 + SQS + CloudFront | Low (mostly CDN) | First revalidation | Product pages, e-commerce |
+| **Streaming** | Lambda (streaming) | Pay-per-request | Yes | Complex dashboards |
+| **Streaming** | ECS/Fargate | Always-on | No | Real-time apps |
+
+---
+
+### ISR on AWS — The Tricky Part
+
+ISR requires cache invalidation. Vercel handles this natively; on AWS, you wire it yourself.
+
+```
+ISR Flow on AWS (OpenNext approach):
+
+1. User requests /products/42
+2. CloudFront checks cache
+   ├── HIT + not stale → return cached HTML (fast)
+   └── HIT + stale (past revalidate time)
+       ├── Return stale HTML to user (fast)
+       └── Send message to SQS queue: "revalidate /products/42"
+           │
+           ▼
+3. SQS triggers Lambda worker
+4. Lambda re-renders /products/42 (calls DB, generates HTML)
+5. Lambda writes new HTML to S3
+6. Lambda invalidates CloudFront cache for /products/42
+7. Next user gets fresh HTML from CDN
+```
+
+```typescript
+// On-demand ISR via API route (works on any AWS setup)
+// app/api/revalidate/route.ts
+import { revalidatePath, revalidateTag } from 'next/cache';
+
+export async function POST(request: Request) {
+  const { path, tag, secret } = await request.json();
+
+  if (secret !== process.env.REVALIDATION_SECRET) {
+    return Response.json({ error: 'Invalid secret' }, { status: 401 });
+  }
+
+  if (tag) {
+    revalidateTag(tag);
+  } else if (path) {
+    revalidatePath(path);
+  }
+
+  return Response.json({ revalidated: true, now: Date.now() });
+}
+```
+
+```bash
+# Trigger from your CMS webhook, cron job, or admin panel
+curl -X POST https://app.example.com/api/revalidate \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/products/42", "secret": "my-secret"}'
+```
+
+---
+
+### Lambda Cold Start Mitigation
+
+```
+Cold start problem:
+  First SSR request after idle → 200-800ms extra latency
+
+Solutions:
+
+1. Provisioned Concurrency (Lambda)
+   - Keep N Lambda instances warm at all times
+   - Cost: ~$15/month per warm instance
+   - Best for: critical pages (checkout, login)
+
+2. SST warm option
+   - warm: 5 in sst.config.ts
+   - Sends periodic pings to keep Lambdas warm
+
+3. CloudFront cache
+   - Cache SSR responses for short TTL (10-30s)
+   - Most users hit cache, only 1 in N hits Lambda
+
+4. Use ECS/Fargate instead
+   - Always-on container = zero cold starts
+   - Trade-off: pay even when idle
+```
+
+---
+
+## 27. Micro-Frontends with Next.js
+
+### What Are Micro-Frontends?
+
+```
+Monolith Frontend:
+┌──────────────────────────────────────────┐
+│              One Next.js App             │
+│  ┌──────┐ ┌──────┐ ┌───────┐ ┌────────┐ │
+│  │ Auth │ │ Cart │ │ Search│ │Products│ │
+│  └──────┘ └──────┘ └───────┘ └────────┘ │
+│  One team. One repo. One deploy.         │
+└──────────────────────────────────────────┘
+
+Micro-Frontend:
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Auth App │ │ Cart App │ │Search App│ │Product   │
+│ (Next.js)│ │ (Next.js)│ │ (React)  │ │  App     │
+│          │ │          │ │          │ │ (Next.js)│
+│ Team A   │ │ Team B   │ │ Team C   │ │ Team D   │
+│ Own repo │ │ Own repo │ │ Own repo │ │ Own repo │
+│ Own CI/CD│ │ Own CI/CD│ │ Own CI/CD│ │ Own CI/CD│
+└──────────┘ └──────────┘ └──────────┘ └──────────┘
+      │            │            │            │
+      └────────────┴────────────┴────────────┘
+                        │
+              ┌─────────▼─────────┐
+              │   Shell / Host    │
+              │   (Next.js App)   │
+              │   Composes all    │
+              │   micro-frontends │
+              └───────────────────┘
+```
+
+---
+
+### Approach 1: Module Federation (Webpack 5 — Most Popular)
+
+Module Federation lets multiple apps share components at **runtime** without bundling them together.
+
+```
+How Module Federation works:
+
+Host App (Shell)                     Remote App (Cart)
+┌────────────────┐                  ┌────────────────┐
+│ Loads its own   │   HTTP request  │ Exposes:       │
+│ bundle + asks   │ ──────────────▶ │  - CartWidget  │
+│ for CartWidget  │                 │  - CartAPI     │
+│ from remote     │ ◀────────────── │  - useCart     │
+│                 │   JS chunk      │                │
+│ Renders it as   │                 │ Deployed       │
+│ if it was local │                 │ independently  │
+└────────────────┘                  └────────────────┘
+```
+
+#### Remote App (exposes components)
+
+```javascript
+// next.config.js — Cart micro-frontend (REMOTE)
+const { NextFederationPlugin } = require('@module-federation/nextjs-mf');
+
+module.exports = {
+  webpack(config, options) {
+    config.plugins.push(
+      new NextFederationPlugin({
+        name: 'cart',
+        filename: 'static/chunks/remoteEntry.js',
+        exposes: {
+          './CartWidget': './components/CartWidget',
+          './useCart': './hooks/useCart',
+        },
+        shared: {
+          react: { singleton: true, requiredVersion: false },
+          'react-dom': { singleton: true, requiredVersion: false },
+        },
+      })
+    );
+    return config;
+  },
+};
+```
+
+#### Host App (consumes remote components)
+
+```javascript
+// next.config.js — Shell app (HOST)
+const { NextFederationPlugin } = require('@module-federation/nextjs-mf');
+
+module.exports = {
+  webpack(config, options) {
+    config.plugins.push(
+      new NextFederationPlugin({
+        name: 'shell',
+        filename: 'static/chunks/remoteEntry.js',
+        remotes: {
+          cart: `cart@${process.env.CART_APP_URL}/static/chunks/remoteEntry.js`,
+          search: `search@${process.env.SEARCH_APP_URL}/static/chunks/remoteEntry.js`,
+          profile: `profile@${process.env.PROFILE_APP_URL}/static/chunks/remoteEntry.js`,
+        },
+        shared: {
+          react: { singleton: true, requiredVersion: false },
+          'react-dom': { singleton: true, requiredVersion: false },
+        },
+      })
+    );
+    return config;
+  },
+};
+```
+
+```jsx
+// app/page.jsx — Host renders remote components
+import dynamic from 'next/dynamic';
+
+const CartWidget = dynamic(() => import('cart/CartWidget'), {
+  ssr: false,
+  loading: () => <div>Loading cart...</div>,
+});
+
+const SearchBar = dynamic(() => import('search/SearchBar'), {
+  ssr: false,
+  loading: () => <div>Loading search...</div>,
+});
+
+export default function HomePage() {
+  return (
+    <main>
+      <SearchBar />
+      <h1>Welcome to the Store</h1>
+      <CartWidget />
+    </main>
+  );
+}
+```
+
+---
+
+### Approach 2: Route-Based Micro-Frontends (Reverse Proxy)
+
+Each micro-frontend owns a set of routes. A reverse proxy (Nginx / CloudFront) routes traffic to the right app.
+
+```
+User visits:  app.example.com/products/42
+                     │
+            ┌────────▼────────┐
+            │  CloudFront /   │
+            │  Nginx Proxy    │
+            └──┬────┬────┬────┘
+               │    │    │
+    /auth/*    │    │    │  /products/*
+    ┌──────────▼┐   │   ┌▼───────────┐
+    │ Auth App  │   │   │ Product App│
+    │ (Next.js) │   │   │ (Next.js)  │
+    └───────────┘   │   └────────────┘
+                    │
+              /*  (default)
+           ┌────────▼────────┐
+           │   Shell App     │
+           │   (Next.js)     │
+           │   Home, About   │
+           └─────────────────┘
+```
+
+#### Nginx Configuration
+
+```nginx
+# nginx.conf — route-based micro-frontend proxy
+upstream shell_app {
+    server shell:3000;
+}
+upstream product_app {
+    server product:3001;
+}
+upstream auth_app {
+    server auth:3002;
+}
+upstream cart_app {
+    server cart:3003;
+}
+
+server {
+    listen 80;
+    server_name app.example.com;
+
+    # Product micro-frontend
+    location /products {
+        proxy_pass http://product_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Auth micro-frontend
+    location /auth {
+        proxy_pass http://auth_app;
+        proxy_set_header Host $host;
+    }
+
+    # Cart micro-frontend
+    location /cart {
+        proxy_pass http://cart_app;
+        proxy_set_header Host $host;
+    }
+
+    # Shell (default — home, about, etc.)
+    location / {
+        proxy_pass http://shell_app;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+#### CloudFront Behavior-Based Routing (AWS)
+
+```
+CloudFront Distribution:
+  ┌─────────────────────────────────────────────────┐
+  │ Behavior         Origin              Cache      │
+  │ ─────────────    ──────────────      ────────── │
+  │ /products/*   →  Product ALB/Lambda   ISR 60s   │
+  │ /auth/*       →  Auth ALB/Lambda      No cache  │
+  │ /cart/*       →  Cart ALB/Lambda      No cache  │
+  │ /api/*        →  API Gateway          No cache  │
+  │ /_next/*      →  S3 (static assets)   1 year    │
+  │ /*            →  Shell ALB/Lambda     SSG cache  │
+  └─────────────────────────────────────────────────┘
+```
+
+---
+
+### Approach 3: npm Package Micro-Frontends (Build-Time Composition)
+
+Each team publishes their micro-frontend as a private npm package. The host installs and bundles them at build time.
+
+```bash
+# Each micro-frontend is a package
+npm install @company/cart-widget @company/search-bar @company/user-profile
+```
+
+```jsx
+// Host app — uses packages like normal components
+import { CartWidget } from '@company/cart-widget';
+import { SearchBar } from '@company/search-bar';
+
+export default function Layout({ children }) {
+  return (
+    <>
+      <SearchBar />
+      {children}
+      <CartWidget />
+    </>
+  );
+}
+```
+
+```
+Pros:
+  ✓ Type safety (shared TypeScript types)
+  ✓ Works with SSR natively
+  ✓ No runtime loading overhead
+  ✓ Standard npm tooling
+
+Cons:
+  ✗ Must rebuild + redeploy host when any package updates
+  ✗ Not truly independent deployment
+  ✗ Version conflicts possible
+```
+
+---
+
+### Shared State Between Micro-Frontends
+
+```typescript
+// shared-events.ts — lightweight event bus for cross-MFE communication
+type EventMap = {
+  'cart:item-added': { productId: string; quantity: number };
+  'auth:login': { userId: string; token: string };
+  'auth:logout': {};
+};
+
+class MicroFrontendBus {
+  private handlers = new Map<string, Set<Function>>();
+
+  on<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void) {
+    if (!this.handlers.has(event)) {
+      this.handlers.set(event, new Set());
+    }
+    this.handlers.get(event)!.add(handler);
+    return () => this.handlers.get(event)!.delete(handler);
+  }
+
+  emit<K extends keyof EventMap>(event: K, data: EventMap[K]) {
+    this.handlers.get(event)?.forEach((handler) => handler(data));
+  }
+}
+
+// Attach to window so all micro-frontends share the same instance
+declare global {
+  interface Window { __MFE_BUS__: MicroFrontendBus }
+}
+
+export function getBus(): MicroFrontendBus {
+  if (typeof window !== 'undefined') {
+    window.__MFE_BUS__ ??= new MicroFrontendBus();
+    return window.__MFE_BUS__;
+  }
+  return new MicroFrontendBus();
+}
+```
+
+```tsx
+// Cart micro-frontend — emits event
+import { getBus } from '@company/shared-events';
+
+function AddToCartButton({ productId }) {
+  const handleClick = () => {
+    addToCart(productId);
+    getBus().emit('cart:item-added', { productId, quantity: 1 });
+  };
+  return <button onClick={handleClick}>Add to Cart</button>;
+}
+
+// Header micro-frontend — listens for cart updates
+import { getBus } from '@company/shared-events';
+import { useEffect, useState } from 'react';
+
+function CartBadge() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = getBus().on('cart:item-added', () => {
+      setCount((prev) => prev + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  return <span className="badge">{count}</span>;
+}
+```
+
+---
+
+### Micro-Frontend Decision Matrix
+
+| Approach | Independent Deploy? | SSR Support | Complexity | Best For |
+|---|---|---|---|---|
+| **Module Federation** | Yes (runtime) | Limited (`ssr: false`) | High | Large orgs, many teams |
+| **Route-Based Proxy** | Yes (per route) | Full SSR per app | Medium | Domain-split apps |
+| **npm Packages** | No (rebuild host) | Full SSR | Low | Small teams, shared UI libs |
+| **iframes** | Yes | N/A (isolated) | Low | Legacy integration, 3rd party |
+
+---
+
+## 28. Deployment Best Practices — Industry Level
+
+### CI/CD Pipeline Structure
+
+```
+┌─────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│  Push   │──▶│  Lint +  │──▶│  Test    │──▶│  Build   │──▶│  Deploy  │
+│  to Git │   │  Type    │   │  (unit + │   │  + Docker│   │  Staging │
+│         │   │  Check   │   │   e2e)   │   │  Image   │   │          │
+└─────────┘   └──────────┘   └──────────┘   └──────────┘   └────┬─────┘
+                                                                 │
+                                                           ┌─────▼─────┐
+                                                           │  Smoke    │
+                                                           │  Tests    │
+                                                           └─────┬─────┘
+                                                                 │
+                                                           ┌─────▼─────┐
+                                                           │  Deploy   │
+                                                           │  Prod     │
+                                                           └───────────┘
+```
+
+#### GitHub Actions Pipeline
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy Next.js
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: nextjs-app
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run test
+
+  build-and-push:
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy to ECS Staging
+        run: |
+          aws ecs update-service \
+            --cluster nextjs-staging \
+            --service nextjs-app \
+            --force-new-deployment
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.example.com
+    steps:
+      - name: Deploy to ECS Production
+        run: |
+          aws ecs update-service \
+            --cluster nextjs-production \
+            --service nextjs-app \
+            --force-new-deployment
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CF_DISTRIBUTION_ID }} \
+            --paths "/*"
+```
+
+---
+
+### Environment Strategy
+
+```
+Environment Setup:
+
+┌─────────────────────────────────────────────────────────┐
+│ Environment │ Branch    │ Purpose        │ URL           │
+│─────────────┼───────────┼────────────────┼───────────────│
+│ Development │ feature/* │ Local dev      │ localhost:3000│
+│ Preview     │ PR branch │ PR review      │ pr-42.dev.com │
+│ Staging     │ main      │ Pre-prod test  │ staging.com   │
+│ Production  │ main      │ Live users     │ app.com       │
+└─────────────────────────────────────────────────────────┘
+```
+
+```typescript
+// Environment variables per stage
+// .env.development
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_ENV=development
+
+// .env.staging
+NEXT_PUBLIC_API_URL=https://api.staging.example.com
+NEXT_PUBLIC_ENV=staging
+
+// .env.production
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_ENV=production
+```
+
+---
+
+### Health Checks and Monitoring
+
+```typescript
+// app/api/health/route.ts — required for ALB/ECS health checks
+export async function GET() {
+  const checks = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.APP_VERSION || 'unknown',
+    checks: {} as Record<string, string>,
+  };
+
+  // database connectivity
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.checks.database = 'connected';
+  } catch {
+    checks.checks.database = 'disconnected';
+    return Response.json({ ...checks, status: 'unhealthy' }, { status: 503 });
+  }
+
+  // Redis connectivity
+  try {
+    await redis.ping();
+    checks.checks.redis = 'connected';
+  } catch {
+    checks.checks.redis = 'disconnected';
+  }
+
+  return Response.json(checks);
+}
+```
+
+---
+
+### Blue-Green and Canary Deployments
+
+```
+Blue-Green Deployment:
+
+Before deploy:
+  CloudFront → ALB → [Blue (v1)] ← 100% traffic
+
+During deploy:
+  CloudFront → ALB → [Blue (v1)] ← 100% traffic
+                      [Green (v2)] ← 0% (warming up, smoke tests)
+
+After validation:
+  CloudFront → ALB → [Blue (v1)] ← 0%  (drain + terminate)
+                      [Green (v2)] ← 100% traffic
+
+Canary Deployment:
+
+  CloudFront → ALB → [v1] ← 95% traffic
+                      [v2] ← 5%  traffic (canary)
+
+  Monitor error rates, latency for 15-30 minutes.
+  If healthy → shift to 100%.
+  If errors  → roll back instantly.
+```
+
+```yaml
+# AWS CodeDeploy appspec for ECS Blue-Green
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "nextjs"
+          ContainerPort: 3000
+Hooks:
+  - BeforeInstall: "scripts/before_install.sh"
+  - AfterInstall: "scripts/smoke_test.sh"
+  - AfterAllowTestTraffic: "scripts/integration_test.sh"
+```
+
+---
+
+### Multi-Region Deployment
+
+```
+For global apps with low latency worldwide:
+
+             ┌──────────────────────┐
+             │   Route 53 (DNS)     │
+             │   Latency-based      │
+             │   routing            │
+             └───┬──────────┬───────┘
+                 │          │
+        ┌────────▼──┐  ┌───▼────────┐
+        │ us-east-1 │  │ eu-west-1  │
+        │           │  │            │
+        │CloudFront │  │CloudFront  │
+        │  ↓        │  │  ↓         │
+        │ ALB       │  │ ALB        │
+        │  ↓        │  │  ↓         │
+        │ ECS       │  │ ECS        │
+        │  ↓        │  │  ↓         │
+        │ RDS       │  │ RDS Read   │
+        │ (primary) │  │ (replica)  │
+        └───────────┘  └────────────┘
+```
+
+---
+
+### Security Checklist for Production Next.js
+
+```typescript
+// next.config.js — production security headers
+const securityHeaders = [
+  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  {
+    key: 'Content-Security-Policy',
+    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com;",
+  },
+];
+
+const nextConfig = {
+  async headers() {
+    return [{ source: '/(.*)', headers: securityHeaders }];
+  },
+  poweredBy: false,
+};
+```
+
+```
+Production Checklist:
+
+Infrastructure:
+  ☐ HTTPS everywhere (ACM certificate + CloudFront)
+  ☐ WAF rules on CloudFront (rate limiting, geo-blocking, SQL injection)
+  ☐ VPC — ECS/Lambda in private subnets, ALB in public subnet
+  ☐ Secrets in AWS Secrets Manager / SSM Parameter Store (never env files)
+  ☐ ECR image scanning enabled
+  ☐ CloudWatch alarms: error rate, latency p99, 5xx count
+
+Application:
+  ☐ Security headers configured (see above)
+  ☐ CSRF protection on Server Actions
+  ☐ Rate limiting on API routes (middleware or API Gateway)
+  ☐ Input validation on all Server Actions (zod)
+  ☐ No secrets in NEXT_PUBLIC_* variables
+  ☐ Error boundaries — never expose stack traces to users
+
+Monitoring:
+  ☐ Structured logging (JSON) → CloudWatch Logs
+  ☐ Distributed tracing (X-Ray or OpenTelemetry)
+  ☐ Real User Monitoring (Vercel Analytics / Datadog RUM)
+  ☐ Uptime monitoring (health check endpoint)
+  ☐ Alerting: PagerDuty / Opsgenie for P1 incidents
+```
+
+---
+
+### Quick Decision Guide — Which AWS Setup?
+
+```
+START
+  │
+  ├── Small app, few pages, low traffic?
+  │     └── AWS Amplify (managed, easy)
+  │
+  ├── Mostly static (blog, docs, marketing)?
+  │     └── S3 + CloudFront (output: 'export')
+  │
+  ├── Need SSR/ISR, serverless, cost-efficient?
+  │     └── OpenNext + SST (Lambda + S3 + CloudFront)
+  │
+  ├── High traffic, WebSocket, streaming SSR?
+  │     └── Docker on ECS/Fargate + ALB + CloudFront
+  │
+  ├── Multi-team, independent deploys?
+  │     └── Micro-frontends (Module Federation or route-based)
+  │         Each MFE gets its own pipeline + AWS setup
+  │
+  └── Enterprise, multi-region, 99.99% uptime?
+        └── ECS + Multi-region + Route 53 + RDS replicas
+```
