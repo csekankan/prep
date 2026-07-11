@@ -336,6 +336,163 @@ START: Grid/path problem?
 
 ---
 
+## When NOT to Use DFS/Dijkstra — How to Pick DP
+
+This is the most important section. The single question that decides everything:
+
+**"Can I revisit a state?"**
+
+```
+Can I revisit a cell/state?
+│
+├─ NO  → It's a DAG → DP (loop or DFS+memo)
+│
+└─ YES → General graph → BFS / Dijkstra / Bellman-Ford
+```
+
+### How to Detect "No cycles" → Use DP
+
+**Signal 1: Movement is restricted to one direction**
+
+```
+"move only right/down"          → can never go back → DAG → DP
+"move only up/left/diag"        → can never go back → DAG → DP
+"move only to larger indices"   → can never go back → DAG → DP
+
+Examples:
+  LC 62   Unique Paths           — only right/down
+  LC 64   Minimum Path Sum       — only right/down
+  LC 1301 Max Score Paths        — only up/left/diag
+  LC 120  Triangle               — only down-left/down-right
+```
+
+**Signal 2: Values enforce an order**
+
+Even with ALL 4 directions, if you can only move to strictly larger/smaller values,
+there are no cycles.
+
+```
+"move to strictly increasing neighbors"   → DAG by value → DFS + memo
+"move to cells with value > current"      → DAG by value → DFS + memo
+
+Examples:
+  LC 329  Longest Increasing Path  — 4 directions BUT strictly increasing = no cycles
+  LC 2328 Increasing Paths Count   — same idea
+```
+
+**Signal 3: A dimension always decreases**
+
+If one parameter of your state always shrinks, you can't cycle.
+
+```
+"fuel decreases each step"       → fuel = 0 is base case → DP
+"cuts remaining decreases"       → cuts = 0 is base case → DP
+"string gets shorter each step"  → empty = base case → DP
+
+Examples:
+  LC 1575 Count All Possible Routes — fuel decreases (4-dir BUT fuel is finite)
+  LC 1444 Number of Ways to Cut a Pizza — cuts decrease
+```
+
+**Signal 4: Classic "choice at each step" problems**
+
+```
+"at step i, choose from options, move to step i+1" → linear DAG → DP
+
+Examples:
+  LC 198  House Robber          — rob or skip, move forward
+  LC 322  Coin Change           — pick a coin, reduce amount
+  LC 1335 Min Difficulty Job Schedule — assign jobs to days
+```
+
+### How to Detect "Yes cycles possible" → Use BFS/Dijkstra
+
+**Signal 1: Free movement in all directions, no value ordering**
+
+```
+"move up/down/left/right freely"     → can revisit → NOT DP
+"move to any neighbor"               → can revisit → NOT DP
+
+Examples:
+  LC 1091 Shortest Path in Binary Matrix — 8 directions, unweighted (BFS)
+  LC 743  Network Delay Time             — general weighted graph (Dijkstra)
+```
+
+**Signal 2: "Shortest path" keyword**
+
+```
+"shortest path" + unweighted  → BFS
+"shortest path" + weighted    → Dijkstra
+"shortest path" + negative    → Bellman-Ford
+```
+
+**Signal 3: State can be reached from multiple directions without natural order**
+
+```
+"you can teleport back"    → cycles possible → BFS/Dijkstra
+"edges go both ways"       → cycles possible → BFS/Dijkstra
+```
+
+### The Trap: "It LOOKS like Dijkstra but it's DP"
+
+This is the exact trap LC 1301 sets:
+
+```
+WRONG:
+  "I want max score along a path"
+  "Max score = optimization"
+  "Path optimization = Dijkstra"              ← WRONG JUMP
+
+RIGHT:
+  "I want max score along a path"
+  "Can I revisit cells? No — moves are only up/left"
+  "No revisits = DAG"
+  "DAG optimization = DP"                     ← CORRECT
+```
+
+**The rule:** Dijkstra finds optimal paths when you DON'T know processing order.
+DP finds optimal paths when you DO know the order (because it's a DAG).
+
+### Quick Decision Table
+
+| Ask yourself | Answer | Use |
+|---|---|---|
+| Can I only move in one direction (right/down, up/left)? | Yes | **DP** (loop) |
+| All directions, but only to strictly larger/smaller values? | Yes | **DP** (DFS + memo) |
+| Does a state parameter always decrease (fuel, cuts, length)? | Yes | **DP** (DFS + memo) |
+| "Shortest path" on unweighted graph? | Yes | **BFS** |
+| "Shortest/cheapest path" on weighted graph? | Yes | **Dijkstra** |
+| Negative edge weights? | Yes | **Bellman-Ford** |
+
+### Concrete Side-by-Side Comparisons
+
+```
+"Max score, move only up/left"
+ → restricted direction → DAG → DP ✓
+
+"Max score, move any direction, visit each cell once"
+ → need visited set → DFS/backtracking (NP-hard in general)
+
+"Shortest path, move any direction, weighted"
+ → Dijkstra ✓
+
+"Shortest path, move any direction, weights 0 or 1"
+ → 0-1 BFS (deque trick) ✓
+
+"Longest increasing path, move any direction"
+ → strictly increasing = no cycles → DFS + memo ✓
+
+"Count paths from A to B, move any direction, K steps"
+ → state = (cell, steps_remaining), steps always decrease → DP ✓
+```
+
+### One-Liner Decision
+
+> **If you can define a loop order where every dependency is already computed, use DP.
+> If you can't, use BFS/Dijkstra.**
+
+---
+
 ## Key Takeaways
 
 1. **DAG = DP.** If movement is restricted (no cycles), you never need Dijkstra or BFS.
