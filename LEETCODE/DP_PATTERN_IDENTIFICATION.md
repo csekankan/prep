@@ -27,6 +27,11 @@
 | "Tree" + aggregate from children | [Tree DP](#14-tree-dp) | §14 |
 | "Game, two players, optimal play" | [Game Theory DP](#15-game-theory-dp) | §15 |
 | "Probability" / "expected value" | [Probability DP](#16-probability--expected-value-dp) | §16 |
+| "Two subsequences" + property match / "Assign each element to a group" | [Element Distribution DP](#17-element-distribution-dp) | §17 |
+| "Subset property for ALL subsets" + small n ≤ 20 | [SOS DP (Sum over Subsets)](#18-sos-dp-sum-over-subsets) | §18 |
+| "Tile a grid" / "fill row by row" + narrow grid | [Profile DP (Broken Profile)](#19-profile-dp-broken-profile) | §19 |
+| "Longest path in DAG" / "count paths in DAG" | [DP on DAGs](#20-dp-on-dags) | §20 |
+| "Circular array" / "first and last connected" | [Circular DP](#21-circular-dp) | §21 |
 
 ---
 
@@ -759,6 +764,286 @@ def dp(state):
 
 ---
 
+## §17: Element Distribution DP
+
+### Trigger Words
+- "Two/multiple subsequences" + GCD/sum/XOR must match
+- "Assign each element to one of K groups"
+- "Split into subsets" where subsets can interleave (NOT contiguous segments)
+- "Disjoint subsequences with some property"
+
+### How It Differs from Knapsack
+
+| | Knapsack (§4) | Distribution (§17) |
+|---|---|---|
+| Groups | 1 (include or exclude) | 2+ (skip, group1, group2, ...) |
+| State per group | Sum/weight (single scalar) | Any aggregate: GCD, XOR, sum, product |
+| Bottom-up | In-place OK (reverse iteration) | **Needs new array** (fan-out > 1) |
+
+### Mental Model
+Walk through elements left to right. For each element, decide:
+**skip, put in group 1, put in group 2, ..., or put in group K.**
+
+State tracks a summary per group (not the full contents).
+
+### State
+`dp[summary1][summary2]` = number of ways (or optimal value) when group 1 has
+aggregate `summary1` and group 2 has aggregate `summary2`.
+
+### Template (Top-Down)
+```python
+@lru_cache(maxsize=None)
+def dp(i, g1, g2):
+    if i == n:
+        return base_case(g1, g2)
+    res = dp(i + 1, g1, g2)                              # skip
+    res += dp(i + 1, combine(g1, nums[i]), g2)            # group 1
+    res += dp(i + 1, g1, combine(g2, nums[i]))            # group 2
+    return res % MOD
+```
+
+### Template (Bottom-Up)
+```python
+dp = initial_table()
+dp[empty][empty] = 1
+
+for num in nums:
+    dp_new = [row[:] for row in dp]    # copy = skip transition
+    for s1 in all_states:
+        for s2 in all_states:
+            if dp[s1][s2] == 0: continue
+            val = dp[s1][s2]
+            dp_new[combine(s1, num)][s2] += val     # group 1
+            dp_new[s1][combine(s2, num)] += val     # group 2
+    dp = dp_new
+```
+
+### Why New Array is Required
+
+One source state `dp[s1][s2]` fans out to **3 destinations** (skip + group1 + group2).
+If you update in-place, later iterations read already-modified cells, double-counting
+the current element. See [ELEMENT_DISTRIBUTION_DP.md](ELEMENT_DISTRIBUTION_DP.md) for
+the complete fan-out rule and decision checklist.
+
+### Key Problems
+
+| Problem | Groups | Aggregate | Difficulty |
+|---|---|---|---|
+| [Target Sum](https://leetcode.com/problems/target-sum/) (LC 494) | 2 (+/−) | running sum | Medium |
+| [Last Stone Weight II](https://leetcode.com/problems/last-stone-weight-ii/) (LC 1049) | 2 | running sum | Medium |
+| [Tallest Billboard](https://leetcode.com/problems/tallest-billboard/) (LC 956) | 2 (left/right) | height difference | Hard |
+| [Profitable Schemes](https://leetcode.com/problems/profitable-schemes/) (LC 879) | 1 + skip | (members, profit) | Hard |
+| [Find Subsequences with Equal GCD](https://leetcode.com/problems/find-the-number-of-subsequences-with-equal-gcd/) (LC 3336) | 2 subsequences | GCD | Hard |
+
+*(Detailed notes with full walkthrough: [ELEMENT_DISTRIBUTION_DP.md](ELEMENT_DISTRIBUTION_DP.md))*
+
+---
+
+## §18: SOS DP (Sum over Subsets)
+
+### Trigger Words
+- "For EVERY subset, compute some aggregate"
+- "Sum/count over all subsets of a bitmask"
+- "How many elements have value that is a submask of X?"
+- Small value range (≤ 2^20) + subset/superset relationships
+- "AND/OR compatibility" between elements
+
+### How It Differs from Bitmask DP (§13)
+
+| | Bitmask DP (§13) | SOS DP (§18) |
+|---|---|---|
+| What mask represents | Set of **items used** | A **value** whose submasks you iterate |
+| Transition | Try adding one unused item | Iterate over one bit at a time |
+| Complexity | O(2^n × n) | O(2^B × B) where B = bits |
+| Use case | Assignment / TSP | Aggregate over all submasks efficiently |
+
+### Mental Model
+
+Naive: for each mask, iterate all submasks → O(3^n).
+SOS: iterate **bit by bit**, building up partial sums → O(2^n × n).
+
+At each step, "absorb" one more bit position. After processing bit `b`,
+`dp[mask]` contains the sum over all submasks that differ from `mask` only in bits 0..b.
+
+### Template
+```python
+# dp[mask] starts as f(mask) for each mask
+for bit in range(B):
+    for mask in range(1 << B):
+        if mask & (1 << bit):
+            dp[mask] += dp[mask ^ (1 << bit)]
+
+# Now dp[mask] = sum of f(submask) for all submasks of mask
+```
+
+### Key Problems
+
+| Problem | What SOS computes |
+|---|---|
+| [Count Pairs With AND in a Range](https://leetcode.com/problems/number-of-valid-words-for-each-puzzle/) (LC 1178) | Count words whose letters are submask of puzzle |
+| [Smallest Sufficient Team](https://leetcode.com/problems/smallest-sufficient-team/) (LC 1125) | Bitmask + SOS for skill coverage |
+| [Maximum AND Sum of Array](https://leetcode.com/problems/maximum-and-sum-of-array/) (LC 2172) | Assign items to slots, AND-based value |
+| [Closest Subsequence Sum](https://leetcode.com/problems/closest-subsequence-sum/) (LC 1755) | Meet-in-middle + subset sums |
+| [Count Pairs of Points With Distance k](https://leetcode.com/problems/count-pairs-of-points-with-distance-k/) (LC 2354) | XOR distance, enumerate submasks |
+
+---
+
+## §19: Profile DP (Broken Profile)
+
+### Trigger Words
+- "Tile an m×n grid with dominoes/shapes"
+- "Fill a grid row by row, each cell depends on neighbors"
+- Grid has one **small dimension** (m ≤ 10-15)
+- "How many ways to cover the grid?"
+
+### Mental Model
+
+Process the grid cell by cell (left to right, top to bottom).
+The "profile" is a bitmask of the boundary between filled and unfilled cells.
+At each cell, decide how to place a tile — this changes the profile bitmask.
+
+### State
+`dp[col][profile_mask]` where profile_mask encodes which cells in the current
+column boundary are already filled (by tiles extending from the previous column).
+
+### Template
+```python
+# m = rows (small), n = columns
+# profile = bitmask of m bits
+dp = {0: 1}  # empty profile, 1 way
+
+for col in range(n):
+    for row in range(m):
+        dp_new = defaultdict(int)
+        for mask, ways in dp.items():
+            # If cell (row, col) is already filled by previous tile
+            if mask & (1 << row):
+                # Skip it — clear the bit
+                dp_new[mask ^ (1 << row)] += ways
+            else:
+                # Place vertical tile (fill this cell + next row)
+                if row + 1 < m and not (mask & (1 << (row + 1))):
+                    dp_new[mask | (1 << (row + 1))] += ways
+                # Place horizontal tile (extends into next column)
+                dp_new[mask | (1 << row)] += ways
+        dp = dp_new
+```
+
+### Key Problems
+
+| Problem | Grid constraint |
+|---|---|
+| [Domino and Tromino Tiling](https://leetcode.com/problems/domino-and-tromino-tiling/) (LC 790) | 2×n board (can simplify to recurrence) |
+| [Number of Ways to Paint N × 3 Grid](https://leetcode.com/problems/number-of-ways-to-paint-n-3-grid/) (LC 1411) | 3 columns, color states |
+| [Maximum Students Taking Exam](https://leetcode.com/problems/maximum-students-taking-exam/) (LC 1349) | Row bitmask, adjacency constraint |
+| [Painting a Grid With Three Different Colors](https://leetcode.com/problems/painting-a-grid-with-three-different-colors/) (LC 1931) | m ≤ 5, enumerate valid row masks |
+
+---
+
+## §20: DP on DAGs
+
+### Trigger Words
+- "Longest/shortest path" in a **directed acyclic graph**
+- "Number of paths" between two nodes in a DAG
+- "Course prerequisites" + optimization over ordering
+- Array problems reducible to DAG (each element depends on earlier elements)
+
+### Mental Model
+
+Topologically sort the DAG. Process nodes in that order.
+Each node's DP value depends only on already-computed predecessors.
+
+### State
+`dp[node]` = answer for the subproblem ending at `node`
+
+### Template
+```python
+# Compute topological order (Kahn's or DFS)
+order = topological_sort(graph)
+
+dp = [base] * n
+for node in order:
+    for neighbor in graph[node]:
+        dp[neighbor] = better(dp[neighbor], dp[node] + edge_cost(node, neighbor))
+
+answer = best(dp[target_nodes])
+```
+
+### Key Insight
+Many array problems are secretly DAGs:
+- **LIS** = longest path in DAG where edges connect `nums[i] → nums[j]` when `i < j` and `nums[i] < nums[j]`
+- **Job scheduling** = DAG where edges represent prerequisite ordering
+
+### Key Problems
+
+| Problem | What forms the DAG |
+|---|---|
+| [Longest Increasing Path in Matrix](https://leetcode.com/problems/longest-increasing-path-in-a-matrix/) (LC 329) | Cells → smaller neighbors |
+| [Course Schedule II](https://leetcode.com/problems/course-schedule-ii/) (LC 210) | Prerequisites |
+| [Parallel Courses III](https://leetcode.com/problems/parallel-courses-iii/) (LC 2050) | Longest path in DAG = critical path |
+| [Number of Ways to Arrive at Destination](https://leetcode.com/problems/number-of-ways-to-arrive-at-destination/) (LC 1976) | Shortest-path DAG |
+| [All Ancestors of a Node in DAG](https://leetcode.com/problems/all-ancestors-of-a-node-in-a-directed-acyclic-graph/) (LC 2192) | Direct DAG DP |
+
+---
+
+## §21: Circular DP
+
+### Trigger Words
+- "Circular array" — first and last elements are neighbors
+- "Ring" / "around a table"
+- Same as a linear DP problem BUT with wraparound constraint
+- "Houses arranged in a circle"
+
+### Mental Model
+
+A circular problem = a linear problem where index 0 and index n-1 are adjacent.
+You **can't** just run linear DP because the first/last interaction creates a cycle.
+
+### The Two Standard Tricks
+
+**Trick 1: Fix one element, run linear twice**
+
+Decide what happens to element 0, then the rest is linear:
+```python
+# Case 1: element 0 IS included → element n-1 is excluded
+answer1 = linear_dp(nums[0 : n-1])   # include 0, exclude last
+
+# Case 2: element 0 is NOT included → element n-1 might be
+answer2 = linear_dp(nums[1 : n])     # exclude 0, include last possible
+
+answer = max(answer1, answer2)   # or min, depending on problem
+```
+
+**Trick 2: Double the array**
+
+Concatenate the array with itself, run linear DP, then take the best
+window of size n:
+```python
+doubled = nums + nums
+# Run DP on doubled, but restrict window size to n
+```
+
+### Which Trick to Use
+
+| Problem type | Best trick |
+|---|---|
+| Include/exclude neighbors (House Robber) | Trick 1: fix element 0 |
+| Subarray sum (circular subarray) | Trick 1: max = total − min_subarray |
+| Interval/range on a ring | Trick 2: double the array |
+| Partition a circular array | Trick 2: double the array |
+
+### Key Problems
+
+| Problem | Circular twist | Base pattern |
+|---|---|---|
+| [House Robber II](https://leetcode.com/problems/house-robber-ii/) (LC 213) | Houses in a circle | Linear DP §1 |
+| [Maximum Sum Circular Subarray](https://leetcode.com/problems/maximum-sum-circular-subarray/) (LC 918) | Circular subarray | Kadane's §1 |
+| [Pizza With 3n Slices](https://leetcode.com/problems/pizza-with-3n-slices/) (LC 1388) | Circular pick, no adjacent | House Robber variant |
+| [Minimum Cost to Merge Stones](https://leetcode.com/problems/minimum-cost-to-merge-stones/) (LC 1000) | Can be circular variant | Interval DP §6 |
+| [Strange Printer II](https://leetcode.com/problems/strange-printer-ii/) (LC 1591) | Overlapping rectangles | DAG/topological |
+
+---
+
 ## The Decision Flowchart
 
 Use this when you're staring at a problem and don't know which pattern:
@@ -772,7 +1057,8 @@ START: What type of input?
 │   ├── "Split into k groups" → §5 Partition DP
 │   ├── "Merge/burst elements from range" → §6 Interval DP
 │   ├── "Palindrome" → §11 Palindrome DP
-│   └── "Count sequences from a value range" → §9 Counting DP
+│   ├── "Count sequences from a value range" → §9 Counting DP
+│   └── "Circular array" (first/last connected) → §21 Circular DP
 │
 ├── Two strings?
 │   └── → §3 Two-String DP (LCS / Edit Distance)
@@ -799,8 +1085,20 @@ START: What type of input?
 ├── "Buy/sell" or named states with transitions?
 │   └── → §10 State Machine DP
 │
-└── "Probability" / "expected value"?
-    └── → §16 Probability DP
+├── "Probability" / "expected value"?
+│   └── → §16 Probability DP
+│
+├── "Two subsequences / groups" + GCD/sum/XOR must match?
+│   └── → §17 Element Distribution DP
+│
+├── "Count/sum for ALL subsets" + bitmask values?
+│   └── → §18 SOS DP
+│
+├── "Tile a grid" / narrow grid (m ≤ 15)?
+│   └── → §19 Profile DP
+│
+└── Directed graph with no cycles + path optimization?
+    └── → §20 DP on DAGs
 ```
 
 ---
@@ -883,6 +1181,12 @@ These are the bugs you keep hitting (based on your 1335 notes):
 ### Trap 4: Base case mismatch
 - Top-down: `if d == 1: return ...` handles the base case naturally
 - Bottom-up: must explicitly fill `dp[j][1]` for all valid `j`
+
+### Trap 5: In-place update when new array is needed
+- **When:** One source state fans out to 2+ destination cells (§17, §10, §3)
+- In-place updates corrupt later reads — the current element gets counted multiple times
+- **Fix:** Ask "does one source write to multiple destinations?" If yes → `dp_new`
+- **Full rule:** See [ELEMENT_DISTRIBUTION_DP.md](ELEMENT_DISTRIBUTION_DP.md) for the fan-out rule
 
 **The safety net:** After converting, test both versions on a small input (3-4 elements).
 Compare every DP state. If any differs → you have a translation bug.
