@@ -1094,6 +1094,111 @@ class UUIDMixin:
     # server_default, which would ask the database to generate it) — either works, this is just one choice
 ```
 
+### Defining tables & columns (full example with relationships)
+
+**Beginner recap:** each `class` that inherits from `Base` maps to one database table. Each `Mapped[...]` +
+`mapped_column(...)` line maps to one column. `relationship(...)` does NOT create a column — it's a pure-Python
+convenience that lets you write `author.books` instead of manually writing a `SELECT ... WHERE author_id = ...`
+query every time. The actual link between tables is always the `ForeignKey` column, never the `relationship()`.
+
+```python
+# app/db/models.py
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
+from sqlalchemy import String, Text, ForeignKey, Numeric, Boolean, Index, UniqueConstraint, Table, Column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.db.base import Base, TimestampMixin, UUIDMixin
+
+class Author(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "authors"
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # unique=True adds a UNIQUE constraint at the DB level (rejects duplicate emails even under
+    # race conditions); index=True adds a B-tree index so lookups by email stay fast as the table grows
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # `str | None` (or Optional[str]) + nullable=True == this column CAN be NULL in the DB;
+    # omit `| None` and SQLAlchemy makes the column NOT NULL by default
+
+    # one Author -> many Books (the "one" side just declares the relationship, no FK column here)
+    books: Mapped[list["Book"]] = relationship(
+        back_populates="author",
+        cascade="all, delete-orphan",
+        # cascade="all, delete-orphan" means: deleting an Author also deletes all their Books,
+        # and removing a Book from author.books (in Python) deletes that Book from the DB too.
+        # Without this, deleting an Author with existing Books would raise a FK violation error.
+        lazy="selectin",   # DEFAULT loading strategy for this relationship whenever Author is queried
+        # (can still be overridden per-query with .options(...) — see the Joins section below)
+    )
+
+    __table_args__ = (
+        Index("ix_authors_name_lower", "name"),   # example of a named, explicit index
+    )
+
+
+class Book(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "books"
+
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    # Numeric(10, 2) — use this for MONEY, never Float (binary floats can't represent 19.99 exactly,
+    # which leads to rounding errors after enough arithmetic — Numeric stores it as exact decimal)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # default=False → Python sets it if you don't pass a value; server_default="false" → the DB
+    # ALSO enforces a fallback at the SQL level (belt and suspenders — matters for raw SQL inserts too)
+
+    author_id: Mapped[UUID] = mapped_column(ForeignKey("authors.id", ondelete="CASCADE"), nullable=False)
+    # ondelete="CASCADE" is a DATABASE-level rule: if the referenced Author row is deleted directly via
+    # SQL (bypassing the ORM's cascade= above), Postgres itself deletes dependent Books too — a safety
+    # net for anything that talks to the DB outside your ORM (raw SQL, another service, an admin tool)
+
+    # many Books -> one Author (the "many" side owns the FK column above)
+    author: Mapped["Author"] = relationship(back_populates="books", lazy="joined")
+    # lazy="joined" as the DEFAULT for a many-to-one is usually fine because it's always exactly one
+    # row per Book — no risk of the row-multiplication problem that collections have with joinedload
+
+    # many Books <-> many Tags, via an association table
+    tags: Mapped[list["Tag"]] = relationship(secondary="book_tags", back_populates="books", lazy="selectin")
+
+    __table_args__ = (
+        UniqueConstraint("title", "author_id", name="uq_book_title_per_author"),
+        # prevents the SAME author from having two books with the identical title —
+        # composite uniqueness across two columns together, not just one column alone
+    )
+
+
+class Tag(Base, UUIDMixin):
+    __tablename__ = "tags"
+
+    name: Mapped[str] = mapped_column(String(50), unique=True)
+    books: Mapped[list["Book"]] = relationship(secondary="book_tags", back_populates="tags")
+
+
+# pure association/"join" table for the many-to-many — no ORM class needed since it has no extra
+# columns of its own (just the two foreign keys). If you needed extra columns (e.g. "added_at" on
+# the relationship itself), you'd make this a full model instead, with an "association object" pattern.
+book_tags = Table(
+    "book_tags",
+    Base.metadata,
+    Column("book_id", ForeignKey("books.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
+```
+
+Cheat sheet for column options you'll use constantly:
+
+| Option | Meaning |
+| --- | --- |
+| `primary_key=True` | this column uniquely identifies the row |
+| `nullable=False` (default when type has no `\| None`) | column can't be `NULL` in the DB |
+| `unique=True` | DB rejects duplicate values across all rows |
+| `index=True` | adds a B-tree index for faster `WHERE`/`ORDER BY` on this column |
+| `default=...` | Python-side fallback value, applied before `INSERT` |
+| `server_default=...` | DB-side fallback value, applied by Postgres itself |
+| `onupdate=...` | Python-side value re-computed on every `UPDATE` |
+| `ForeignKey("table.col", ondelete="CASCADE")` | DB-level referential integrity + cascade behavior |
+
 ### Repository pattern
 
 ```python
@@ -1142,6 +1247,372 @@ def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
     # this is itself a dependency — a route can write `repo: UserRepository = Depends(get_user_repo)`
     # and FastAPI will resolve get_db() first, then pass its session into UserRepository automatically
 ```
+
+### Full CRUD reference (using the Author/Book models above)
+
+```python
+from sqlalchemy import select, update, delete, func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.models import Author, Book
+
+# ---------- CREATE ----------
+async def create_author(db: AsyncSession, name: str, email: str) -> Author:
+    author = Author(name=name, email=email)
+    db.add(author)                 # stage it — not written to the DB yet
+    try:
+        await db.commit()          # actually writes it + ends the transaction
+    except IntegrityError:
+        await db.rollback()        # MUST rollback before the session can be reused (e.g. duplicate email)
+        raise
+    await db.refresh(author)       # pull back DB-generated fields (id, created_at) into the Python object
+    return author
+
+async def bulk_create_books(db: AsyncSession, books: list[Book]) -> None:
+    db.add_all(books)              # stage many objects at once
+    await db.commit()              # single round-trip commit for all of them
+
+# ---------- READ ----------
+async def get_author(db: AsyncSession, author_id: UUID) -> Author | None:
+    return await db.get(Author, author_id)   # primary-key shortcut, returns None if missing
+
+async def get_author_or_404(db: AsyncSession, author_id: UUID) -> Author:
+    author = await db.get(Author, author_id)
+    if author is None:
+        raise HTTPException(status_code=404, detail="Author not found")
+    return author
+
+async def search_books_by_title(db: AsyncSession, keyword: str) -> list[Book]:
+    stmt = select(Book).where(Book.title.ilike(f"%{keyword}%")).order_by(Book.title)
+    # ilike = case-INsensitive LIKE. The %...% wraps the keyword so it matches ANYWHERE in the title.
+    # Note: keyword is passed as a bound parameter (safe from SQL injection) — never f-string raw SQL.
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+async def paginate_books(db: AsyncSession, page: int, size: int) -> tuple[list[Book], int]:
+    offset = (page - 1) * size
+    items_stmt = select(Book).offset(offset).limit(size).order_by(Book.created_at.desc())
+    count_stmt = select(func.count()).select_from(Book)
+    items = list((await db.scalars(items_stmt)).all())
+    total = await db.scalar(count_stmt) or 0
+    return items, total
+
+# ---------- UPDATE ----------
+# Option A: load, mutate in Python, commit — triggers ORM events/validators, good for business logic
+async def rename_author(db: AsyncSession, author_id: UUID, new_name: str) -> Author:
+    author = await get_author_or_404(db, author_id)
+    author.name = new_name         # just a normal attribute assignment
+    await db.commit()              # SQLAlchemy tracks that `name` changed and sends only that UPDATE
+    await db.refresh(author)
+    return author
+
+# Option B: bulk UPDATE statement — faster, but skips ORM-level events/validators, use for mass updates
+async def mark_all_books_published(db: AsyncSession, author_id: UUID) -> None:
+    stmt = update(Book).where(Book.author_id == author_id).values(is_published=True)
+    await db.execute(stmt)
+    await db.commit()
+
+# ---------- DELETE ----------
+async def delete_author(db: AsyncSession, author_id: UUID) -> None:
+    author = await get_author_or_404(db, author_id)
+    await db.delete(author)        # triggers cascade="all, delete-orphan" -> also deletes their Books
+    await db.commit()
+
+async def bulk_delete_unpublished_books(db: AsyncSession) -> int:
+    stmt = delete(Book).where(Book.is_published.is_(False))
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount   # number of rows actually deleted
+```
+
+Key distinction to remember: **ORM-style** (`db.get`, attribute assignment, `db.delete(obj)`) loads objects into
+memory first, so cascades/validators/events fire correctly — use it for anything business-logic-sensitive.
+**Core-style bulk statements** (`update(...)`, `delete(...)` executed directly) never load rows into Python and
+run as a single SQL statement — much faster for mass operations, but they bypass ORM cascades, `onupdate=`
+Python callables that aren't DB `server_default`s, and any custom validation logic on your models.
+
+### Joins — three ways to fetch related data
+
+Say you want a list of `Book` objects, but you also need each book's `Author` name, and you only want books whose
+author is from a specific country. There are three different tools depending on what you need:
+
+```python
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload, joinedload, contains_eager
+
+# 1) Plain JOIN returning specific COLUMNS (not full ORM objects) — most efficient
+#    when you don't need to work with the objects afterward, just display values.
+stmt = (
+    select(Book.title, Author.name.label("author_name"))
+    .join(Author, Book.author_id == Author.id)   # explicit join condition
+    .where(Author.country == "US")
+)
+rows = (await db.execute(stmt)).all()
+for row in rows:
+    print(row.title, row.author_name)   # Row objects support attribute access by label
+
+
+# 2) JOIN + contains_eager — you need FULL ORM objects (with .author populated) AND you
+#    need to filter/order using the joined table's columns. joinedload() alone can't do this
+#    because it doesn't let the join participate in your own WHERE/ORDER BY.
+stmt = (
+    select(Book)
+    .join(Book.author)                      # SQLAlchemy infers the join condition from the relationship
+    .where(Author.country == "US")
+    .options(contains_eager(Book.author))   # "the author data is ALREADY in this result set, use it directly"
+    .order_by(Author.name)
+)
+books = (await db.scalars(stmt)).unique().all()
+for book in books:
+    print(book.title, book.author.name)     # NO extra query — already populated from the join
+
+
+# 3) Separate relationship-loading (no manual JOIN) — simplest when you just want the
+#    related objects attached, without filtering by the related table's columns.
+stmt = select(Book).options(joinedload(Book.author))     # many-to-one — 1 query via LEFT JOIN
+books = (await db.scalars(stmt)).unique().all()
+
+stmt = select(Author).options(selectinload(Author.books))  # one-to-many — 2 queries via IN(...)
+authors = (await db.scalars(stmt)).unique().all()
+```
+
+Rule of thumb: use plain `.join()` + selected columns when you just need to *read* combined data; use
+`contains_eager` when you need full objects AND must filter/sort by the joined table; use `selectinload`/
+`joinedload` (no manual join) when you simply want a relationship pre-populated with no extra filtering on it.
+
+### The N+1 problem, explained end-to-end
+
+**What it looks like when you get it wrong:**
+
+```python
+# Fetch 50 authors — looks innocent
+authors = (await db.scalars(select(Author))).all()          # query #1
+
+total_books = 0
+for author in authors:
+    total_books += len(author.books)   # DANGER: accessing a lazy relationship inside a loop
+    # In SYNC SQLAlchemy, this silently fires a separate `SELECT * FROM books WHERE author_id = ...`
+    # for EVERY author — 50 authors = 51 total queries (the "+1" is the original author query).
+    # In ASYNC SQLAlchemy, this instead raises immediately:
+    #   sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here
+    # because lazy-loading needs to run a blocking-style call that async mode doesn't allow implicitly.
+    # This is actually a GOOD thing — it forces you to notice the bug at development time instead of
+    # silently shipping a slow endpoint that only gets discovered under production load.
+```
+
+**Why it's expensive:** each query is a full network round-trip to the database. 1 query taking 2ms feels
+free; 50 queries at 2ms each is 100ms added to your response, and it gets linearly worse as your data grows —
+a page listing 1,000 authors would fire 1,001 queries instead of 2.
+
+**The fix — eager load relationships you know you'll access:**
+
+```python
+from sqlalchemy.orm import selectinload
+
+stmt = select(Author).options(selectinload(Author.books))
+authors = (await db.scalars(stmt)).all()
+
+total_books = sum(len(author.books) for author in authors)
+# NO extra queries here now — SQLAlchemy already ran:
+#   SELECT * FROM authors;                          -- query #1
+#   SELECT * FROM books WHERE author_id IN (...);    -- query #2, ALL authors' books in one shot
+# Total: 2 queries no matter how many authors there are.
+```
+
+**Catching N+1 bugs before they reach production:**
+
+```python
+from sqlalchemy.orm import raiseload
+
+# In tests/dev, force any UN-eager-loaded relationship access to explode loudly instead of
+# silently doing a slow extra query (or, in async mode, instead of the cryptic MissingGreenlet error)
+stmt = select(Author).options(raiseload(Author.books))
+authors = (await db.scalars(stmt)).all()
+for author in authors:
+    print(author.books)   # raises sqlalchemy.exc.InvalidRequestError immediately — clear, actionable error
+```
+
+```python
+# Or simply turn on SQL logging in dev and eyeball the query count for a given endpoint:
+engine = create_async_engine(settings.database_url, echo=True)
+# every SELECT/INSERT/UPDATE/DELETE prints to the console — if you see the SAME query pattern
+# repeated many times with only the WHERE value changing, that's N+1 in the wild
+```
+
+| Strategy | Queries fired | SQL shape | Best for |
+| --- | --- | --- | --- |
+| (default) lazy load, unguarded | N+1 | 1 query per relationship access | never in async — will error or silently tank performance |
+| `selectinload` | 2 | `SELECT ... WHERE fk IN (...)` | one-to-many, many-to-many collections |
+| `joinedload` | 1 | `LEFT OUTER JOIN` | many-to-one, one-to-one (no row multiplication risk) |
+| `contains_eager` | 1 | your own explicit `JOIN` | need to filter/sort by the joined table too |
+| `raiseload` | — | raises instead of querying | tests/dev — surfaces missed eager-loads immediately |
+
+### External connection pooling (PgBouncer / RDS Proxy) — why app-level pooling isn't enough
+
+**Beginner recap:** `create_async_engine(pool_size=20, ...)` (shown earlier) pools connections **inside your own
+process**. That's fine for a single long-running server. The problem shows up once you scale horizontally: if you
+run 20 pods/containers, each with `pool_size=20`, you now have 400 connections hitting Postgres at once — and
+Postgres itself has a hard connection ceiling (often ~100-500 depending on instance size), because each Postgres
+connection is a full OS process with real memory overhead. An **external pooler** sits between your many app
+instances and the single database, multiplexing hundreds of app-level connections down onto a much smaller number
+of real DB connections.
+
+**Used in production?** Yes, essentially mandatory once you're running more than a couple of app replicas, and
+absolutely required for serverless/Lambda-style deployments (each invocation can't hold a long-lived pool). The
+two dominant choices:
+
+- **PgBouncer** — a lightweight standalone proxy you run yourself (or as a managed add-on), sits between app and
+  Postgres. Runs in `transaction` pooling mode in most production setups (a DB connection is only checked out for
+  the duration of one transaction, then instantly returned to the pool for another client to use).
+- **RDS Proxy** (AWS) / **Cloud SQL Auth Proxy** (GCP) — the managed-cloud equivalent; handles pooling, failover,
+  and IAM-based auth for you, no separate service to operate yourself.
+
+```python
+# app/core/config.py — pointing your app at PgBouncer instead of Postgres directly
+class Settings(BaseSettings):
+    # in prod this host:port is PgBouncer, NOT the real Postgres instance —
+    # PgBouncer then maintains its own small pool of real connections to Postgres behind it
+    database_url: str = "postgresql+asyncpg://user:pass@pgbouncer-host:6432/mydb"
+
+engine = create_async_engine(
+    settings.database_url,
+    pool_size=5,          # keep YOUR app's pool small — PgBouncer is doing the heavy multiplexing now,
+    max_overflow=5,       # so each app replica only needs a handful of connections into PgBouncer itself
+    pool_pre_ping=True,   # still useful — PgBouncer can drop idle connections on its own schedule
+    connect_args={"server_settings": {"jit": "off"}, "statement_cache_size": 0},
+    # statement_cache_size=0 is IMPORTANT with PgBouncer's transaction pooling mode: asyncpg normally
+    # caches "prepared statements" tied to a specific physical connection, but in transaction pooling
+    # mode you might get handed a DIFFERENT physical Postgres connection on every transaction — a
+    # cached prepared statement from a previous connection would then error out unpredictably.
+)
+```
+
+Key production gotchas to know (these come up constantly in interviews and real incidents):
+
+- **Transaction-mode pooling breaks session-level features** — `SET search_path`, advisory locks, and prepared
+  statements can behave unexpectedly because you're not guaranteed the same physical connection across
+  statements. Only assume connection state lasts as long as one transaction.
+- **Sizing formula** — a common starting point is `db_max_connections ≈ (num_app_replicas × pool_size) capped by
+  what PgBouncer exposes`, then let PgBouncer fan that out to a much smaller `default_pool_size` against the
+  actual database.
+- **Always keep `pool_pre_ping=True`** in front of any pooler — poolers can silently close idle connections on
+  their own timers, and a stale connection handed back to your app looks identical to a healthy one until you
+  try to use it.
+
+### DynamoDB (async) — a very different model from SQL
+
+**Beginner recap:** DynamoDB is a fully-managed NoSQL key-value/document store. There is no "connection pool" to
+size the way there is with Postgres — you talk to it over plain HTTPS via the AWS SDK, and AWS handles all the
+underlying connection/scaling concerns server-side. The mental model shift versus SQLAlchemy: no joins, no
+foreign keys, no schema enforcement by the DB — you design your table's key structure UP FRONT around your
+access patterns ("single-table design"), because DynamoDB is essentially a giant sorted hash map optimized for
+fast lookups by key, not flexible ad-hoc queries.
+
+**Used in production?** Yes, very common for high-throughput, simple-access-pattern workloads — session stores,
+shopping carts, IoT event ingestion, feature flags, leaderboard/counter data — anywhere you want single-digit
+millisecond reads/writes at massive scale without managing database servers. Less common as the primary store
+for data with complex relational reporting needs (that's still SQL's strength).
+
+```python
+# app/db/dynamo.py — using aioboto3 for a true async client (plain boto3 is sync/blocking)
+import aioboto3
+from contextlib import asynccontextmanager
+
+session = aioboto3.Session()
+
+@asynccontextmanager
+async def get_table(table_name: str):
+    async with session.resource(
+        "dynamodb",
+        region_name=settings.aws_region,
+        # in production, credentials come from the IAM role attached to the ECS task / EKS pod /
+        # Lambda function automatically — you should almost never hardcode aws_access_key_id here
+    ) as dynamo:
+        yield await dynamo.Table(table_name)
+
+
+# ---------- CREATE / UPSERT (put_item always fully replaces the item) ----------
+async def create_cart(user_id: str, items: list[dict]) -> None:
+    async with get_table("shopping_carts") as table:
+        await table.put_item(Item={
+            "pk": f"USER#{user_id}",     # partition key — determines which physical shard stores this item
+            "sk": "CART",                 # sort key — lets one partition key hold MULTIPLE related item types
+            "items": items,
+            "updated_at": datetime.utcnow().isoformat(),
+        })
+
+# ---------- READ (single item, by exact key — this is DynamoDB's fastest, cheapest operation) ----------
+async def get_cart(user_id: str) -> dict | None:
+    async with get_table("shopping_carts") as table:
+        response = await table.get_item(Key={"pk": f"USER#{user_id}", "sk": "CART"})
+        return response.get("Item")   # DynamoDB returns no "Item" key at all if nothing matched
+
+# ---------- QUERY (multiple items sharing a partition key — still fast, uses the index) ----------
+async def get_user_orders(user_id: str) -> list[dict]:
+    async with get_table("orders") as table:
+        response = await table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :sk_prefix)",
+            ExpressionAttributeValues={":pk": f"USER#{user_id}", ":sk_prefix": "ORDER#"},
+            # this pattern — one partition key holding many sort-key-prefixed item types — is the
+            # core trick of "single-table design": USER#123/PROFILE, USER#123/ORDER#1, USER#123/ORDER#2
+            # all live in the same table, fetched together efficiently by one query on the partition key
+        )
+        return response.get("Items", [])
+
+# ---------- UPDATE (partial update — only touches the given attributes, unlike put_item) ----------
+async def update_cart_items(user_id: str, items: list[dict]) -> None:
+    async with get_table("shopping_carts") as table:
+        await table.update_item(
+            Key={"pk": f"USER#{user_id}", "sk": "CART"},
+            UpdateExpression="SET items = :items, updated_at = :now",
+            ExpressionAttributeValues={":items": items, ":now": datetime.utcnow().isoformat()},
+            ConditionExpression="attribute_exists(pk)",   # fails instead of silently creating a new item
+        )
+
+# ---------- DELETE ----------
+async def delete_cart(user_id: str) -> None:
+    async with get_table("shopping_carts") as table:
+        await table.delete_item(Key={"pk": f"USER#{user_id}", "sk": "CART"})
+
+# ---------- Handling optimistic concurrency + capacity errors (very real in production) ----------
+from botocore.exceptions import ClientError
+
+async def increment_view_count(post_id: str) -> None:
+    async with get_table("posts") as table:
+        try:
+            await table.update_item(
+                Key={"pk": f"POST#{post_id}", "sk": "META"},
+                UpdateExpression="ADD view_count :one",   # atomic increment — no read-then-write race condition
+                ExpressionAttributeValues={":one": 1},
+            )
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            if code == "ProvisionedThroughputExceededException":
+                # you're being rate-limited by DynamoDB's capacity settings — retry with backoff,
+                # or switch the table to On-Demand billing mode if traffic is spiky/unpredictable
+                raise
+            raise
+```
+
+Industry practices worth knowing:
+
+- **Single-table design** — unlike SQL where you normalize into many tables, idiomatic DynamoDB often puts
+  multiple *entity types* (users, orders, products) into ONE table, differentiated by `pk`/`sk` prefixes
+  (`USER#123`, `ORDER#456`), specifically so related data can be fetched in a single `Query` call instead of
+  multiple round-trips (DynamoDB has no server-side joins at all).
+- **Design for your access patterns FIRST**, schema second — in SQL you model entities/relationships and query
+  flexibly later; in DynamoDB you must know your exact query patterns (get user's last 10 orders? get order by
+  ID? search orders by status?) before picking your key structure, because you can't easily add a new access
+  pattern to existing data without a Global Secondary Index (GSI) or a data migration.
+- **On-Demand vs Provisioned capacity** — On-Demand auto-scales and is simpler/safer for unpredictable traffic
+  (pay per request); Provisioned is cheaper at steady, predictable volume but requires capacity planning and
+  risks throttling (`ProvisionedThroughputExceededException`) if you underestimate.
+- **Idempotency via conditional writes** — `ConditionExpression` (as in `update_cart_items` above) is DynamoDB's
+  equivalent of a SQL `WHERE` clause on an `UPDATE`, and it's the standard way to prevent double-processing or
+  overwriting newer data with stale data (compare-and-swap style).
+- **No transactions across many items by default** — DynamoDB does support `transact_write_items` for atomic
+  multi-item writes (up to 100 items, within limits), but it's more expensive and slower than single-item
+  operations, so reach for it only when you truly need atomicity across multiple items.
 
 ### Alembic migrations (async)
 
