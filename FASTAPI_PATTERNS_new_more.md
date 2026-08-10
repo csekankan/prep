@@ -1199,6 +1199,92 @@ Cheat sheet for column options you'll use constantly:
 | `onupdate=...` | Python-side value re-computed on every `UPDATE` |
 | `ForeignKey("table.col", ondelete="CASCADE")` | DB-level referential integrity + cascade behavior |
 
+### Where the FK actually lives, and how `back_populates` connects both sides
+
+A very common point of confusion: with a one-to-many `Author`/`Book`, there are TWO `relationship()` calls (one
+on each class), but only ONE real foreign key column in the database — and it lives only on the "many" side.
+
+```python
+class Book(Base):
+    ...
+    author_id: Mapped[UUID] = mapped_column(ForeignKey("authors.id"))   # <-- the ONLY real FK column
+    # this line creates an actual `author_id` column in the `books` table with a real FK constraint.
+    # This is the ONLY place the relationship exists at the database level.
+
+    author: Mapped["Author"] = relationship(back_populates="books")
+    # does NOT create a column. SQLAlchemy looks at the ForeignKey above and infers the join:
+    # "to get this book's author, run SELECT * FROM authors WHERE id = book.author_id"
+
+class Author(Base):
+    ...
+    books: Mapped[list["Book"]] = relationship(back_populates="author", cascade="all, delete-orphan")
+    # Author has NO foreign key column at all. This relationship reuses Book's SAME foreign key,
+    # just queried in the opposite direction: "SELECT * FROM books WHERE author_id = author.id"
+```
+
+- A foreign key is inherently one-directional data (`books.author_id` says "this book belongs to this author");
+  there is no equivalent stored column on `authors` — `author.books` only exists as a *query*, not stored data.
+- `back_populates="..."` does NOT define the join — it just keeps the two Python-side attributes in sync in
+  memory, so `author.books.append(book)` automatically also sets `book.author = author` for you, without you
+  manually keeping both sides consistent yourself.
+- If a `Book` had two FKs to `Author` (e.g. `author_id` and `co_author_id`), you'd need `foreign_keys=[...]` on
+  the `relationship()` to disambiguate which FK each relationship should use.
+
+### Order of operations — classes vs. tables vs. queries
+
+It's easy to assume writing a `class Author(Base): ...` immediately creates a table — it doesn't. There are three
+distinct phases, and only the last one ever touches the real database at request time:
+
+1. **Class definition (import time)** — running your model files just builds an in-memory description
+   (`Base.metadata`) of what tables *should* look like. Zero SQL is sent to the database at this point.
+2. **Table creation (once, or via migration)** — either a one-time `Base.metadata.create_all()` (dev/tests only)
+   or an Alembic migration actually runs the `CREATE TABLE` / `ALTER TABLE` SQL against Postgres.
+3. **Querying (every request, at runtime)** — `select()`, `db.add()`, `db.delete()` etc. are what actually read
+   or write rows in the tables that already exist from step 2.
+
+**`Base.metadata.create_all()` is a dev/testing-only shortcut, not a production migration tool:**
+
+| | `create_all()` | Alembic migrations |
+| --- | --- | --- |
+| Creates new tables | ✅ | ✅ |
+| Adds a new column to an EXISTING table | ❌ silently does nothing | ✅ explicit `ALTER TABLE` |
+| Drops columns/tables removed from models | ❌ never | ✅ if the migration says so |
+| Rollback support | ❌ none | ✅ `alembic downgrade -1` |
+| Versioned history, reviewable in PRs | ❌ none | ✅ each change is a file in git |
+
+If you add a field to a model and only ever ran `create_all()` once, the database silently falls out of sync
+with your models — `create_all()` skips any table that already exists, so your app can crash at runtime trying
+to use a column that was never actually added to the real database. The safe production flow is: change models
+→ `alembic revision --autogenerate` → review the generated migration by hand → commit it → `alembic upgrade head`
+in CI/CD before or during deploy. `Base.metadata.drop_all()` (the destructive counterpart of `create_all`) should
+never run anywhere near a database with real data — it has no confirmation step and will wipe every table.
+
+### Does declaring a relationship mean it's fetched automatically?
+
+No. Declaring `relationship()` only means the attribute is *accessible* — it says nothing about *when* the
+related rows get fetched. That's controlled entirely by the loading strategy (`lazy=` default, or `.options(...)`
+on a specific query):
+
+```python
+result = await db.execute(select(Author).where(Author.id == author_id))
+author = result.scalar_one()
+# only the `authors` row was fetched here — `author.books` has NOT been touched yet, no books query ran
+
+print(author.name)    # fine, `name` is already-loaded column data, no extra query
+print(author.books)   # THIS is the line that decides whether/how to go fetch books
+```
+
+| Loading strategy | Behavior when `author.books` is accessed |
+| --- | --- |
+| default (`lazy="select"`) | fires a brand-new `SELECT * FROM books WHERE author_id = ...` right then, per author |
+| async SQLAlchemy + unguarded default | often raises `MissingGreenlet` instead, since implicit lazy-loading needs a blocking-style call |
+| `.options(selectinload(Author.books))` on the original query | books already fetched as one extra bulk query — reading `.books` afterward is free, no extra SQL |
+| `lazy="raise"` | raises immediately on access, forcing an explicit eager-load choice |
+
+So a 1-to-many relationship does not mean every `Author` query also fetches its `Book`s — it means the
+*capability* to fetch them exists, and you (or the relationship's `lazy=` default) decide when and how that
+actually happens.
+
 ### Repository pattern
 
 ```python
