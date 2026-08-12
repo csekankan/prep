@@ -12,3 +12,5 @@ https://www.puneetpatwari.in/login?error=missing_code
 greatfrontend
 lldcoding
 https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead
+
+https://www.smashingmagazine.com/2018/02/sse-websockets-data-flow-http2/
