@@ -4757,6 +4757,7 @@ Provider limits usually have **two axes** — RPM and TPM — and the tokens axi
 
 ### Design-review checklist (Chapter 7)
 
+
 - What's the **smallest regression your eval suite can detect**, and is that smaller than the regression you'd care about?
 - Is the judge **pinned to a model version**, and what's its measured agreement with human labellers?
 - For the cascade: what's the **false-confident rate** on the kept queries, per slice, and who re-tunes the threshold when a model changes?
