@@ -1170,6 +1170,7 @@ Redis failure after COMMIT: user **has** reservation; cache wrong until reconcil
 
 **Pattern B — Redis grant only with sync durable write**
 
+
 ```text
 POST reserve → Lua SPOP → PG INSERT (same request, blocking) → both OK → 201
               → if PG fails → Lua COMPENSATE (SADD unit back) or mark resv invalid
