@@ -8,7 +8,7 @@
 
 **The one-line thesis [Algoroq]:** a photo service is **write-once, read-a-million-times, keep-forever**, where **every uploaded byte is untrusted**. Every design choice moves cost between four bills: **encoder CPU, storage (a stock that compounds), egress (a monthly flow), and moderation latency.**
 
-**Study path (≈25 min):** [§0 cheat sheet](#0-cheat-sheet-5-min) → [§1 HLD](#1-chosen-design-default-answer) → [§2 upload](#2-deep-dive--the-upload-path) → [§3 pipeline](#3-deep-dive--the-media-pipeline-an-attack-surface-first) → [§5 CDN + URLs](#5-deep-dive--cdn-economics-and-url-design) → [§8 takedowns](#8-deep-dive--moderation-and-takedowns) → [§14 drill](#14-interview-drill-card--stress-test) → [§16 staff insight](#16-faang--staff-level-insight)
+**Study path (≈25 min):** [Basics](#basics--concepts-you-need-first) → [§0 cheat sheet](#0-cheat-sheet-5-min) → [§1 HLD](#1-chosen-design-default-answer) → [§2 upload](#2-deep-dive--the-upload-path) → [§3 pipeline](#3-deep-dive--the-media-pipeline-an-attack-surface-first) → [§5 CDN + URLs](#5-deep-dive--cdn-economics-and-url-design) → [§8 takedowns](#8-deep-dive--moderation-and-takedowns) → [§14 drill](#14-interview-drill-card--stress-test) → [§16 staff insight](#16-faang--staff-level-insight)
 
 ### Plain-English glossary (read once, then everything below makes sense)
 
@@ -85,6 +85,189 @@ Read it left to right: **bytes go straight to storage**, never through the API; 
 6. **Read** — The feed API ranks posts, **re-checks visibility**, and returns each item with a **blurhash placeholder** and a **ladder of signed variant URLs**. The client picks the right size for its screen and network. **[Algoroq]**
 7. **Serve** — The CDN edge serves the image; on a miss it asks a **regional shield**; only the shield's miss reaches our **image origin**, which can generate a missing (lazy) size from the master. **[Algoroq]**
 8. **Remove** — A takedown **flips visibility first** (feeds stop showing it within seconds), then **purges** CDN copies, then deletes bytes after a **legal-hold** check. **[Algoroq]**
+
+---
+
+## Basics — concepts you need first
+
+> Read this once before the design. Each part answers a "wait, what is that?" question that comes up later. All of it is **[Guide]** (standard background knowledge) unless marked.
+
+### B1. EXIF — the hidden data inside a photo
+
+**What it is:** information a phone or camera stores **inside the photo file**, next to the picture. You don't see it, but anyone with the file can read it.
+
+| EXIF field | Example |
+|------------|---------|
+| **GPS location** | `28.6139° N, 77.2090° E` — accurate to a few meters, often someone's home |
+| Date and time | `2026-10-27 22:14:03` |
+| Phone / camera model | `iPhone 15 Pro` |
+| Camera settings | Lens, exposure, flash |
+| An **embedded thumbnail** | A small preview of the photo **as originally taken** |
+
+**Why phones save it:** it's useful to **you**. Your gallery sorts by date, shows a map of where photos were taken, and builds "memories from this trip". Photographers check their settings. EXIF only becomes a problem when the file is **shared with strangers**.
+
+**Why we remove it (EXIF stripping):**
+
+- **Privacy:** a photo taken at home and served as-is reveals the home's GPS location.
+- **The sneaky part:** if a user **crops** a friend out or blurs a document before posting, the embedded thumbnail can still contain the **uncropped original**. **[Algoroq]**
+
+**How to remove it — re-encode, don't edit [Algoroq]:**
+
+| Method | Result |
+|--------|--------|
+| **Edit** (find known EXIF tags, delete them) | Misses some: there are many hiding places (maker notes, XMP, embedded thumbnails) |
+| **Re-encode** (decode to raw pixels, save a brand-new file from the pixels only) | Nothing from the old file survives unless we write it on purpose. Like **photocopying a letter** instead of erasing pencil marks |
+
+### B2. Orientation normalisation — making the photo upright
+
+When you hold the phone sideways, the camera doesn't rotate the image. It saves the pixels in the sensor's fixed direction and adds an EXIF note: **"rotate 90° when displaying"** (the `Orientation` tag).
+
+- **Why the camera does this:** writing a one-number note is instant. Actually rotating means decoding and re-saving the whole JPEG, which costs time, battery and a little quality.
+- **The problem:** some apps read the note and some don't, so the photo can show **sideways**. And once we strip EXIF, the note is gone for everyone.
+- **The fix (normalising):** apply the rotation **to the pixels** during processing. The new file is upright by itself and needs no note.
+- **Order matters:** **rotate first, then strip.** Strip first and you've lost the note that said which way was up.
+
+**Together in the pipeline:**
+
+1. Decode the upload into pixels.
+2. Read the orientation note → **rotate the pixels** upright.
+3. **Re-encode** a clean file. All EXIF (GPS, time, camera, thumbnail) is gone in one step.
+4. That file becomes the **master**; every smaller size is made from it.
+
+### B3. Do AI-generated images carry hidden data?
+
+They usually have **no camera EXIF** (no camera, no GPS), but often carry **other** hidden data:
+
+| What | Where it lives | Example |
+|------|----------------|---------|
+| **Generation settings** | Text fields inside the PNG file | Stable Diffusion tools often save the **full prompt, seed and model settings**: someone's private prompt can leak |
+| **Content Credentials (C2PA)** | A signed provenance record in the metadata | Used by OpenAI, Adobe Firefly, Microsoft and others: "made by AI tool X", cryptographically signed |
+| **IPTC "AI-generated" label** | A standard metadata field | "Created by a trained algorithm"; platforms read it to show an "AI info" label |
+| **Invisible watermark** | **In the pixels**, not the metadata | Google's **SynthID**; survives resizing and re-encoding |
+
+A **screenshot** of an AI image carries the phone's metadata instead; the AI labels are gone.
+
+**What this means for our pipeline:** re-encoding removes **all** metadata, which is good for privacy (GPS, prompts) but also deletes AI labels. So:
+
+1. **Read first:** check for C2PA / IPTC AI labels before decoding.
+2. **Record:** save `ai_generated = true` and its source on the Media row (for an "AI info" label).
+3. **Then strip:** re-encode as usual.
+4. **Watermarks** need a separate async detector, next to the other classifiers.
+
+Same principle as the safety hash: **capture it at ingest, before you throw anything away** (§3). Caveat: labels are easy to remove before upload, so "no label" doesn't prove a photo is real.
+
+### B4. S3 storage classes and lifecycle rules
+
+S3 offers several **storage classes**, from fast and expensive to slow and cheap. **Lifecycle rules** move or delete objects automatically by age. The guide's words map onto them like this:
+
+| Guide's word | S3 class | ~Price per GB-month (us-east-1 list) | Read speed | Good for photos? |
+|--------------|----------|--------------------------------------|------------|------------------|
+| **Hot** | **S3 Standard** | ~$0.023 | milliseconds | Yes: new and popular photos |
+| **Warm** ("~half price") | **Standard-IA** (Infrequent Access) | ~$0.0125 | milliseconds | Yes: old masters. Catches: **128 KB minimum billable size**, 30-day minimum stay, fee per GB read |
+| **Cold, still instant** | **Glacier Instant Retrieval** | ~$0.004 | milliseconds | Yes for very old masters; 90-day minimum stay, higher read fee |
+| **Archive** | Glacier Flexible Retrieval / Deep Archive | ~$0.0036 / ~$0.001 | **minutes to 12+ hours** | **No** for serving (a user won't wait hours); fine for backups |
+| **Automatic** | Intelligent-Tiering | moves objects by access | milliseconds | Charges a **monitoring fee per object**, which adds up at ~1B new objects/day; doesn't auto-tier objects under 128 KB |
+
+A lifecycle rule has two kinds of action:
+
+- **Transition:** after N days, move to a cheaper class → "masters go warm".
+- **Expiration:** after N days, delete → "evict old derivatives".
+
+A lifecycle rule only knows an object's **age**, not whether anyone viewed it recently. "Delete derivatives with no recent hits" needs a small custom job using access logs, or a simpler "delete derivatives older than 1 year" (they can always be remade).
+
+When Hello says "move cold media to Glacier", it should mean **Glacier Instant Retrieval** for anything a user might still view. **[Hello + Guide]**
+
+**The cost table from §0, step by step** (Algoroq uses an illustrative **$20/TB-month** for hot storage; egress stays at **$1.2M/month** because users are flat): **[Algoroq numbers · Guide arithmetic]**
+
+| Row | Arithmetic | Per user (÷ 500M DAU) |
+|-----|-----------|------------------------|
+| **Year 1, untiered** | 85 PB × $20/TB = $1.7M + $1.2M egress = **$2.9M** | ~$0.006 |
+| **Year 5, untiered** | 425 PB × $20 = $8.5M + $1.2M = **$9.7M** | ~$0.019 — **3× year one with the same users** |
+| **Year 5, tiered** | 21 PB hot × $20 = $0.4M · 280 PB warm × $10 = $2.8M · ~124 PB old derivatives **deleted** = $0 → $3.2M + $1.2M = **$4.4M** | ~$0.009 |
+
+**Why "evict derivatives first":** deleting 124 PB saves ~124 × $20 = **~$2.5M/month**; warm-tiering 280 PB saves ~280 × $10 = **~$2.8M/month**. About the same saving, but deleting needs only a delete job: no transition fees, no minimum stays, no read fees.
+
+**Two traps:** don't tier tiny files (a 25 KB thumbnail costs **more** in IA because of the 128 KB minimum — the ~70 KB break-even in §4); don't tier too early (a 90-day minimum stay bills you even if the user deletes the photo next week).
+
+### B5. Presigned URLs — letting the phone upload without our credentials
+
+Our server uses its **secret storage credentials** to **sign** a URL that grants one narrow permission:
+
+> "Whoever holds this link may upload **this one object**, **part 3**, **until 9:00**."
+
+- The phone uploads **straight to storage**; it never sees our credentials, and the bytes never pass through our API servers.
+- After the expiry time the link stops working.
+- Algoroq calls it a **"signed"** URL; Hello and AWS call it **"presigned"**. Same thing.
+
+**Download links are signed too, differently:** feed image URLs are **CDN signed URLs** (e.g. CloudFront). Viewers never touch S3; the CDN checks the signature ("the feed API allowed this viewer, until this time") and serves from cache. That's how private photos can sit on a public CDN.
+
+### B6. Multipart upload and ETags
+
+**Multipart upload** = send a big file in **pieces (parts)**. A dropped connection only costs the piece in flight, and pieces can go in parallel. **[Hello: needed because one HTTP request is usually capped under ~2 GB]**
+
+**An ETag is a claim ticket for each piece.** S3 says "I received part 3, here's ticket `e1f2…`." At the end you hand S3 all the tickets and say "join exactly these pieces."
+
+- **What it guarantees:** the final file is built from **exactly the pieces S3 confirmed**, in order. A stale, missing or replaced piece → S3 **refuses to finish** instead of silently producing a broken photo.
+- **It's required in S3:** the "complete upload" call **must** list every part as `{PartNumber, ETag}`.
+- **Where it's saved:** S3 **stores** each part and its ETag under the upload's `UploadId`, **and returns** the ETag to the uploader. They stay until the upload is completed (joined into one file) or aborted (deleted).
+
+**Is an ETag a hash of the content?** Sometimes:
+
+| How the object was stored | ETag |
+|---------------------------|------|
+| Single upload, default S3 encryption | **MD5 of the bytes** |
+| Each part of a multipart upload | **MD5 of that part** |
+| Finished multipart object | MD5 **of the parts' MD5s** + `-` + part count, e.g. `"3858f622…-4"` — **not** the whole file's MD5 |
+| KMS / customer-key encryption | Not an MD5 at all |
+
+So **never use an ETag as a whole-file checksum.** That's why our API sends its own **`sha256`** of the full photo at commit.
+
+**Example: how S3 refuses a wrong piece**
+
+```text
+1. Start:   server → S3 "start upload for m_8Kq2" → UploadId U77 (saved in our Media row)
+2. Upload:  part 1 → ETag "aaa"
+            part 2 → ETag "bbb"   ← connection drops, phone never sees the reply
+            part 2 again (retry) → S3 replaces it → ETag "ccc"
+            part 3 → ETag "ddd"
+            S3's store for U77:  part1=aaa  part2=ccc  part3=ddd
+3. Finish:  ✅ [1:aaa, 2:ccc, 3:ddd] → all match → photo created
+            ❌ [1:aaa, 2:bbb, 3:ddd] → part 2 mismatch → error InvalidPart, no file
+               → server fetches the real list (ListParts) and finishes with it
+```
+
+**If the phone loses its tickets (app killed mid-upload), nothing is lost:**
+
+```text
+1. Phone → server: "what happened to upload m_8Kq2?"
+2. Server reads the Media row → UploadId U77
+3. Server → S3: ListParts(U77) → parts 1–3 done (part 4 never finished)
+4. Server → phone: "send part 4 onward"
+5. Phone uploads the rest, then commits
+```
+
+Only the piece that was mid-upload is resent. **If the server lost the `UploadId` too**, S3 can find it again from the object key (`ListMultipartUploads` with the key as prefix). Only a lost key **and** a lost `UploadId` orphans the upload, and the lifecycle rule below cleans that up.
+
+**Does this make our API servers stateful? No.** "Stateless" means no request depends on **one particular server's memory**. Here the state lives in shared, durable places:
+
+| State | Where it lives |
+|-------|----------------|
+| The parts and their ETags | **S3**, under the `UploadId` |
+| The upload session (`mediaId`, `UploadId`, expected `sha256`, size, state, expiry) | **Our metadata database** (the Media row) |
+| The ETag tickets during upload | **The phone** (optional; S3 can list them) |
+
+Server A can start the upload and server B can finish it. B reads the Media row and calls S3.
+
+**Cleanup:** an abandoned upload's parts **are still billed** (they don't show in normal bucket listings). Use both an S3 lifecycle rule **"abort incomplete multipart uploads after N days"** and our GC moving the Media row to `ABANDONED` and aborting the S3 upload.
+
+**Other storage services, same idea:**
+
+| Service | Per-piece receipt |
+|---------|-------------------|
+| AWS S3 | ETag, required at completion |
+| Google Cloud Storage (XML multipart) | ETag, same as S3 |
+| Google Cloud Storage (resumable upload) | No per-piece receipt; the server tracks the **byte offset** received |
+| Azure Blob Storage | A **block ID** the client picks per piece; finish with a "block list" |
 
 ---
 
@@ -198,27 +381,273 @@ erDiagram
 - **Split the media record in two.** An **immutable projection** (aspect ratio, blurhash, variant ladder) cached aggressively with **no invalidation**, and a **tiny mutable visibility record** read on **every** request from a store sized for that rate. Only visibility ever changes after READY.
 - **Shard media by `mediaId` (random), never by upload time.** Time-based sharding puts all of today's writes and most of today's reads on one shard.
 
-### APIs [Algoroq]
+### APIs — in detail
 
-```text
-POST /v1/media/uploads            { sha256, bytes, mime, width, height }
-     → { mediaId, uploadUrl (signed, chunked/resumable), chunkSize, expiresAt }
-PUT  {uploadUrl}?part=n           ← straight to the storage edge, never via the API tier
-POST /v1/media/{mediaId}/commit   { parts[], sha256 } → { state: PROCESSING }
+> **In plain English:** a **photo** and a **post** are two separate things, created by separate calls. **Media** = the photo bytes: big, slow to upload, needs processing. **Post** = a caption plus a list of media ids: tiny, saved in milliseconds. Think of shipping a **parcel** first and getting a tracking number, then sending a short **note**: "the parcel with tracking number X is a birthday gift." Parcel = media, tracking number = `mediaId`, note = post. **[Algoroq idea · Guide analogy]**
 
-POST /v1/posts                    Header: Idempotency-Key: <client uuid>
-     { mediaIds[], caption, audience } → { postId, state: PENDING_MEDIA | PUBLISHED }
-POST /v1/stories                  { mediaId, audience: all | close_friends }
-DELETE /v1/posts/{postId}
+**All endpoints at a glance:**
 
-GET  /v1/feed?cursor=…            → items[] each with a media descriptor:
-     { mediaId, blurhash, aspect, variants: [{ w, fmt, url }] }   // signed, short-lived
-GET  /v1/stories/tray             → authors with unseen state, ordered
+| # | Endpoint | Who calls it | Purpose | Source |
+|---|----------|--------------|---------|--------|
+| 1 | `POST /v1/media/uploads` | App, when a photo is **selected** | Start an upload; get a `mediaId` + presigned part URLs | [Algoroq] |
+| 2 | `PUT {partUrl}` | App → **storage**, not our API | Upload one piece | [Algoroq · Hello] |
+| 3 | `GET /v1/media/{mediaId}/upload` | App, after a crash or reconnect | Which parts arrived? Fresh URLs for the rest | [Guide] |
+| 4 | `POST /v1/media/{mediaId}/commit` | App, after the last piece | "All pieces sent": join, verify, start processing | [Algoroq] |
+| 5 | `POST /v1/posts` | App, when **Share** is tapped | Create the post from media ids | [Algoroq · Hello] |
+| 6 | `PATCH /v1/posts/{postId}` | App | Edit the caption (pixels can't change) | [Guide, from Algoroq's rule] |
+| 7 | `DELETE /v1/posts/{postId}` | App | Delete a post | [Algoroq] |
+| 8 | `POST /v1/stories` | App | Post a story frame | [Algoroq] |
+| 9 | `GET /v1/feed` | App | Home feed page | [Algoroq · Hello] |
+| 10 | `GET /v1/stories/tray` | App | Who has stories, and which are unseen | [Algoroq] |
+| 11 | `GET /v1/stories/{authorId}` · `POST …/seen` | App | View an author's frames; mark seen | [Guide, from Algoroq's seen model] |
+| 12 | `POST /v1/follows` · `DELETE /v1/follows/{followedId}` | App | Follow / unfollow | [Hello] |
+
+*(Algoroq's API block is cut off at the PDF's right margin; line endings are completed from its surrounding text. Endpoints 3, 6, 11 and the unfollow call are additions to complete the flow.)*
+
+**The upload-and-post flow (Riya posts two photos):**
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant P as Riya's phone
+  participant A as API
+  participant S as Storage (S3)
+  participant PL as Pipeline
+  P->>A: 1. POST /media/uploads (on photo select)
+  A->>S: start multipart upload
+  A-->>P: mediaId + presigned part URLs
+  P->>S: 2. PUT parts (background)
+  S-->>P: ETag per part
+  P->>A: 4. POST /media/{id}/commit
+  A->>S: complete upload, verify sha256
+  A->>PL: enqueue processing
+  P->>A: 5. POST /posts (Share tapped)
+  A-->>P: postId, PENDING_MEDIA
+  PL->>A: media READY
+  A->>A: post PUBLISHED, fan-out
 ```
 
-*(The PDF's API block is cut off at the right margin; the endings of a few lines are completed from its surrounding text.)*
+#### 1. `POST /v1/media/uploads` — start an upload [Algoroq]
 
-Why each choice:
+The app sends a **description** of the photo, not the photo itself.
+
+```http
+POST /v1/media/uploads
+Authorization: Bearer <token>
+
+{ "sha256": "9f2c…", "bytes": 840000, "mime": "image/jpeg",
+  "width": 2048, "height": 1536, "purpose": "post" }
+```
+
+| Field | Meaning | Why it's sent up front |
+|-------|---------|------------------------|
+| `sha256` | Fingerprint of the whole file | Verify the file at commit; make commit idempotent; **dedup within this user** (a retried upload of the same file returns the existing `mediaId`) **[Algoroq]** |
+| `bytes` | File size | Reject oversized files (e.g. Hello's 8 MB photo cap) before any upload; plan the number of parts |
+| `mime` | Declared type | Reject formats outside the allowlist early. The pipeline still **sniffs the real format** later (§3) |
+| `width`, `height` | Declared dimensions | Reject a "30,000 × 30,000" decompression bomb **before a byte arrives**; plan which sizes and crops to make **[Algoroq]** |
+| `purpose` | `post` or `story` | Same upload flow for both; stories get a different storage bucket and lifetime |
+
+**What the server does:**
+
+1. Validates the fields (allowlisted type, size and pixel limits). The app could lie, so the pipeline **re-checks** the real file header later; this check only saves wasted uploads.
+2. Checks **per-user dedup**: same user + same `sha256` already uploaded → return that `mediaId`.
+3. Creates the **Media row**: `state = CREATED`, expected `sha256`, size, expiry.
+4. Starts an **S3 multipart upload** in the **raw quarantine bucket** → gets an `UploadId`, saved on the Media row.
+5. Signs one **presigned URL per part** (B5).
+
+```json
+→ 201 Created
+{ "mediaId": "m_8Kq2…",
+  "chunkSize": 262144,
+  "parts": [ { "n": 1, "url": "https://upload-edge…/m_8Kq2?partNumber=1&uploadId=U77&X-Amz-Signature=…" },
+             { "n": 2, "url": "…" }, { "n": 3, "url": "…" }, { "n": 4, "url": "…" } ],
+  "expiresAt": "2026-10-28T09:00:00Z" }
+```
+
+| Error | When |
+|-------|------|
+| `400` | Missing or invalid fields |
+| `413` | File or pixel count over the limit |
+| `415` | Type not allowed |
+| `429` | Upload rate limit (e.g. a 2-hour-old account uploading 400 images, §8) |
+
+#### 2. `PUT {partUrl}` — upload one piece (straight to storage) [Algoroq · Hello]
+
+```http
+PUT https://upload-edge…/m_8Kq2?partNumber=2&uploadId=U77&X-Amz-Signature=…
+<256 KB of bytes>
+
+→ 200 OK
+  ETag: "ccc"
+```
+
+- Goes to the **storage edge**, never our API tier, so thousands of slow 3G uploads don't tie up API servers. **[Algoroq]**
+- S3 **stores** the piece + ETag under `U77` and **returns** the ETag (B6).
+- Pieces can be sent in parallel; a failed piece is simply re-sent.
+
+#### 3. `GET /v1/media/{mediaId}/upload` — resume after a crash [Guide]
+
+```json
+GET /v1/media/m_8Kq2/upload
+→ 200 { "state": "UPLOADING",
+        "partsReceived": [1, 2, 3],
+        "parts": [ { "n": 4, "url": "…fresh presigned URL…" } ],
+        "expiresAt": "2026-10-28T09:00:00Z" }
+```
+
+The server reads the Media row (`UploadId`), calls **S3 ListParts**, and signs fresh URLs only for missing parts. The phone doesn't need to remember anything (B6).
+
+#### 4. `POST /v1/media/{mediaId}/commit` — "all pieces sent" [Algoroq]
+
+```http
+POST /v1/media/m_8Kq2/commit
+{ "parts": [ {"n":1,"etag":"aaa"}, {"n":2,"etag":"ccc"}, {"n":3,"etag":"ddd"}, {"n":4,"etag":"eee"} ],
+  "sha256": "9f2c…" }
+
+→ 202 Accepted
+{ "mediaId": "m_8Kq2…", "state": "PROCESSING" }
+```
+
+**What the server does:**
+
+1. Loads the Media row → `UploadId`.
+2. Gets the authoritative part list from **S3 ListParts** (the app's `parts` list is an optional cross-check).
+3. Calls **S3 complete multipart upload** with `{PartNumber, ETag}` pairs → S3 joins the pieces.
+4. Verifies the joined file's **`sha256`** matches what step 1 promised.
+5. Sets `state = COMMITTED → PROCESSING` and **enqueues the pipeline** (§3).
+
+**Idempotent:** a second commit for the same `mediaId` returns the current state (`PROCESSING` or `READY`) instead of failing or reprocessing. A retry after a dropped response is harmless.
+
+| Error | When |
+|-------|------|
+| `409` | Parts missing — the response lists which ones |
+| `422` | `sha256` mismatch — the file is corrupted or swapped; the upload is aborted |
+| `410` | Session expired — the media is `ABANDONED`; start a new upload |
+
+#### 5. `POST /v1/posts` — create the post (Share tapped) [Algoroq · Hello]
+
+```http
+POST /v1/posts
+Idempotency-Key: 5d1e-…            ← random id the app creates for this one tap
+{ "mediaIds": ["m_8Kq2…", "m_Zp7r…"], "caption": "Goa!", "audience": "public" }
+
+→ 201 Created
+{ "postId": "p_4411", "state": "PENDING_MEDIA" }
+```
+
+| Check | Rule |
+|-------|------|
+| Ownership | Every `mediaId` belongs to the caller |
+| Count | 1–10 media (carousel) **[Algoroq]** |
+| Media state | Not `REJECTED` or `ABANDONED`; `purpose = post` |
+| Idempotency | Same key + same body → **same response** (`p_4411`), no second post. Same key + different body → `422` |
+
+**The two possible answers:**
+
+- `PENDING_MEDIA`: the post is saved but at least one photo is still processing. Riya's app shows it **from the photos on her phone**, so it feels instant. **[Algoroq]**
+- `PUBLISHED`: all media was already `READY` (usually the case, since the upload started when she picked the photos).
+
+**What happens next:** when every media item is `READY`, the post flips to `PUBLISHED`, and **only then** fan-out to followers starts (§2: the 404 trap). **[Algoroq]**
+
+**Hello's version:** `POST /posts` comes **first** and returns the presigned URL, with an `uploadStatus` of `pending → complete`. This guide goes **media first**, so the upload can start before a post exists. Both use presigned multipart upload. **[Hello vs Algoroq]**
+
+#### 6. `PATCH /v1/posts/{postId}` — edit the caption [Guide, from Algoroq's rule]
+
+```json
+PATCH /v1/posts/p_4411   { "caption": "Goa! 🌴" }   → 200 { "postId": "p_4411", "caption": "Goa! 🌴" }
+```
+
+Only `caption` (and audience) can change. **Media can't**: applying a new filter means uploading a new media object, which keeps image URLs immutable and cacheable for a year (§5). **[Algoroq]**
+
+#### 7. `DELETE /v1/posts/{postId}` — delete [Algoroq]
+
+```json
+DELETE /v1/posts/p_4411   → 202 { "state": "DELETED" }
+```
+
+1. Post → `DELETED`; media **visibility → REMOVED**, so feeds drop it on the next read.
+2. CDN **purge** of its variant URLs.
+3. The media loses its post reference → the **GC** deletes bytes after the grace window, **unless a legal hold is set** (§2, §8).
+
+#### 8. `POST /v1/stories` — post a story frame [Algoroq]
+
+```json
+POST /v1/stories   Idempotency-Key: …
+{ "mediaId": "m_Q1a…", "audience": "close_friends" }
+→ 201 { "storyId": "s_9001", "state": "LIVE", "expiresAt": "2026-10-29T08:52:00Z" }
+```
+
+Same upload flow with `purpose = story`. `expiresAt` = **server** publish time + 24h, never the phone's clock. **[Algoroq]**
+
+#### 9. `GET /v1/feed` — the home feed [Algoroq · Hello]
+
+```http
+GET /v1/feed?cursor=abc&limit=20
+X-Client-Width: 390          ← screen width in points
+X-Client-DPR: 3              ← device pixel ratio
+X-Network-Class: 4g
+```
+
+```json
+→ 200
+{ "items": [ {
+    "postId": "p_4411",
+    "author": { "id": 77, "name": "riya" },
+    "caption": "Goa!",
+    "media": [ {
+      "mediaId": "m_8Kq2…",
+      "blurhash": "LKO2?U%2Tw=w]~RBVZRi};RPxuwH",
+      "aspect": 1.33,
+      "variants": [
+        { "w": 320,  "fmt": "webp", "url": "https://img-a.cdn…/m/8Kq2/320.webp/v7?exp=…&sig=…" },
+        { "w": 640,  "fmt": "webp", "url": "https://img-a.cdn…/m/8Kq2/640.webp/v7?exp=…&sig=…" },
+        { "w": 1080, "fmt": "avif", "url": "https://img-a.cdn…/m/8Kq2/1080.avif/v7?exp=…&sig=…" } ] } ] } ],
+  "nextCursor": "def" }
+```
+
+| Piece | Meaning |
+|-------|---------|
+| **`cursor` / `nextCursor`** | "Continue after the last post I saw" — encodes `(createdAt, postId)`, not a page number, so new posts don't shift pages **[Hello cursor · Guide detail]** |
+| **Client hints** | Screen width, density and network let the server send a sensible ladder **[Algoroq]** |
+| **`variants` (the ladder)** | The allowed sizes and formats. The app **picks one** and never invents sizes like "731 px", which would let anyone force endless resizes and fill the CDN with one-off copies **[Algoroq]** |
+| **Picking a size** | Shown 390 points wide × DPR 3 ≈ 1,170 px → take the **1080** rung. Old 2× phone ≈ 780 px → **640**. Slow 3G → go one rung smaller **[Guide]** |
+| **`blurhash`** | ~30 characters the app turns into a blurry preview, shown **instantly** before any image downloads **[Algoroq]** |
+| **`aspect`** | The photo's shape, so the layout doesn't jump when the image arrives **[Algoroq]** |
+| **Signed, short-lived URLs** | The feed API checked "may this viewer see it?"; the URL is their temporary permission. Signature + expiry are **not** part of the CDN cache key (§5) **[Algoroq]** |
+| **Hostname per request** (`img-a…`) | The feed picks the CDN, which gives cost steering and CDN failover without an app release **[Algoroq]** |
+
+**What the server does:** read the inbox + pull celebrity posts → rank (or sort by time, in Hello's chronological version) → batch-fetch media descriptors **with visibility** → **drop anything not visible** → sign URLs → return. **[Algoroq · Hello]**
+
+#### 10. `GET /v1/stories/tray` — who has stories [Algoroq]
+
+```json
+→ 200 { "authors": [
+    { "authorId": 77, "name": "riya", "latestStoryAt": "2026-10-28T08:40:00Z", "hasUnseen": true },
+    { "authorId": 12, "name": "arjun", "latestStoryAt": "2026-10-28T07:10:00Z", "hasUnseen": false } ] }
+```
+
+`hasUnseen` = `latestStoryAt > seenUpTo` for this (viewer, author) pair: one small "seen up to" bookmark per pair, not one row per frame viewed (§7). Only stories with server time < `createdAt + 24h` are listed. **[Algoroq]**
+
+#### 11. View and mark stories seen [Guide, from Algoroq's model]
+
+```json
+GET  /v1/stories/77   → 200 { "frames": [ { "storyId": "s_9001", "variants": [ … ], "expiresAt": "…" } ] }
+POST /v1/stories/77/seen   { "upTo": "2026-10-28T08:40:00Z" }   → 204
+```
+
+- Frame URLs expire at `min(signature TTL, story expiresAt)`, and CDN `max-age` = the story's **remaining** life. **[Algoroq]**
+- `seen` only ever moves the bookmark **forward**, so a late or repeated call is harmless.
+
+#### 12. `POST /v1/follows` — follow [Hello]
+
+```json
+POST /v1/follows   { "followedId": "123" }   → 201
+DELETE /v1/follows/123                        → 204
+```
+
+The **follower's** id comes from the auth token, not the body, so nobody can make someone else follow an account. **[Hello]** A new follow can backfill a few recent posts into the follower's feed; an unfollow filters at read time. **[Guide]**
+
+**Why each choice (summary):**
 
 - **Media and posts are separate resources.** Upload media first, then create a post that references it. This is what lets "post" feel instant (§2). **[Algoroq]**
 - **The client sends `sha256` and dimensions up front.** The server can reject oversized dimensions **before a byte arrives**, make `commit` idempotent, and pre-plan the variants. **[Algoroq]**
