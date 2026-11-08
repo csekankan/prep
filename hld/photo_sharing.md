@@ -930,6 +930,24 @@ sequenceDiagram
 
 **C — Take down a photo:** see the sequence in §8.
 
+**D — A private account, end to end (A + B joined) [Guide]:** Kiran's account is **private**. Rahul and Anita are **approved** followers; Sam is not.
+
+| # | Step | Where it happens |
+|---|---|---|
+| 1 | Kiran picks a photo → `POST /v1/media/uploads` → `mediaId m_8Kq2` + presigned part URLs | API tier |
+| 2 | Phone uploads the parts **straight to storage**, into the **raw quarantine** bucket (no CDN can reach it) | storage edge |
+| 3 | `commit` with sha256 → pipeline job queued. Kiran taps Share → `POST /v1/posts` → `PENDING_MEDIA`; her own screen shows the photo from the local file | API tier |
+| 4 | Pipeline: known-bad hash check, **EXIF (incl. GPS) stripped** by re-encoding, master + eager sizes 320/640/1080 written → **media READY** | pipeline |
+| 5 | Post → `PUBLISHED`; fan-out puts "post 123" into the feed inbox of Kiran's **approved followers only**: Rahul, Anita. Sam gets nothing | post / feed service |
+| 6 | Rahul opens his feed → feed service **re-checks**: Kiran is private, is Rahul still approved? yes → signed URLs (`exp=13:00`) | feed service |
+| 7 | Rahul's phone fetches the 640 px URL → Mumbai edge checks `sig` → **miss** → regional shield **miss** → origin → cached at shield + edge | CDN |
+| 8 | Anita (Delhi) gets her own signed URL → Delhi edge miss → **shield hit** (same cache key) → our origin isn't asked | CDN |
+| 9 | Sam opens Kiran's profile → "This account is private", **no URLs issued**; a guessed or forged URL → 403 | profile API / CDN |
+| 10 | Kiran removes Anita → Anita's next feed drops the post; her old link dies at `exp` | feed service |
+| 11 | Kiran deletes the photo → visibility flips (no new URLs) → CDN **purge** → bytes deleted after the legal-hold check (§8, §10) | post service / CDN |
+
+A second viewer at the **same edge** (say, another Mumbai follower) gets an **edge hit**, but only for the **same rung**: a phone asking for `1080.avif` instead of `640.webp` is a different cache key, so it's a miss at the edge, then usually a shield hit. A hit also needs the copy not to have been **evicted**: rarely viewed photos get pushed out of busy edges (the long tail above).
+
 ### Latency budget — feed image first byte < 150 ms p95 [Guide]
 
 | Step | Budget | How |
@@ -1174,6 +1192,69 @@ An image already cached at the edge **can't be un-shared**. For private accounts
 | **Unguessable, non-sequential media ids** | Sequential or time-based ids let a scraper enumerate media wherever a signature is misconfigured |
 
 **The signature TTL is your worst-case exposure window.** When a public account goes private, URLs already handed out can't be recalled; they stay valid until they expire. Pick that TTL **deliberately**, write it into the privacy review, and don't let a CDN default choose it. **[Algoroq]**
+
+**Worked example: one private photo, three viewers [Guide]**
+
+Priya's account is **private**. She posts photo `m_8Kq2`. Rahul and Anita are approved followers; Sam is not.
+
+```mermaid
+sequenceDiagram
+  participant R as Rahul (follower)
+  participant F as Feed API
+  participant E as CDN edge
+  participant O as Shield / origin
+  R->>F: open feed
+  F->>F: Priya is private. Is Rahul approved? yes
+  F-->>R: url = /m/8Kq2/640.webp/v7?exp=13:00&sig=ab12
+  R->>E: GET that url
+  E->>E: check sig with our key, check exp not passed
+  E->>E: cache key = /m/8Kq2/640.webp/v7 (sig removed)
+  E->>O: miss → fetch once
+  E-->>R: photo (now cached)
+```
+
+| Who | What happens |
+|---|---|
+| **Rahul** (approved) | the feed API gives him a signed URL. The edge checks the signature (pure math, no call to our servers), strips it, and serves the cached copy |
+| **Anita** (approved) | she gets a **different** URL (`exp=13:05&sig=f9c1`), but after stripping it's the **same cache key**, so she gets a **cache hit** |
+| **Sam** (not approved) | the feed API never gives him a URL. A URL without `sig`, a guessed `mediaId`, or a forged signature → edge returns **403**, even though the bytes sit in that same cache |
+| **Sam with Rahul's copied link** | it **works until 13:00**. That's the exposure window, the reason signatures last hours, not days |
+| **Priya removes Rahul** | Rahul's next feed has no new URL for her photos; his old URL dies at its `exp` |
+| **Priya deletes the photo / takedown** | visibility flips first (no new URLs), then a CDN **purge** removes the cached copies (§8) |
+
+**"Can't anyone just add their own `exp` and `sig`?" No.** The signature is `sig = HMAC-SHA256(secret_key, path + exp)`, a fingerprint of the path and expiry mixed with a **secret key that only our feed API and the CDN know**. The edge recomputes it and compares:
+
+| Attempt | What the edge computes | Match? |
+|---|---|---|
+| Real link: `8Kq2`, `exp=13:00`, `sig=b871f888…` | `b871f888…` | ✅ serve |
+| Sam edits the expiry to `exp=23:59`, keeps the same `sig` | `7131f72c…` | ❌ 403 |
+| Sam swaps in another photo id `9Zz1`, keeps the same `sig` | `5fc34027…` | ❌ 403 |
+| Sam makes his own `sig` with a guessed key | his `2aa93385…` ≠ the real `7131f72c…` | ❌ 403 |
+
+(Real values from `openssl dgst -sha256 -hmac`, cut to 8 characters.) Without the secret key, you can't produce a matching `sig` for any path or expiry you choose. That's why the URL works as a permission. **Do all allowed viewers get the same `sig`?** Only if their `exp` is the same: the signature covers path + expiry, not the viewer. Usually `exp` = "feed load time + a few hours", so each viewer's `sig` differs (Rahul `13:00`, Anita `13:05`). Some systems round `exp` to the hour so viewers share URLs, or add the viewer id/IP to what's signed so a copied link fails for others. CloudFront uses a key **pair** instead: we sign with a private key and the CDN checks with the public key. Same idea.
+
+**"Different signatures, so no caching?" No: the edge does two separate steps.**
+1. **Check the ticket:** use `exp` + `sig` to decide yes/no for *this* request.
+2. **Find the photo:** look up the cache using **only the path**. `exp` and `sig` are left out of the cache key (in CloudFront: query strings are not part of the cache policy).
+
+| Viewer's URL | Cache key the edge uses | Result |
+|---|---|---|
+| `…/640.webp/v7?exp=13:00&sig=ab12` (Rahul) | `/m/8Kq2/640.webp/v7` | miss → fetched once |
+| `…/640.webp/v7?exp=13:05&sig=f9c1` (Anita) | `/m/8Kq2/640.webp/v7` | **hit** |
+| `…/640.webp/v7?exp=13:09&sig=77d0` (999 more) | `/m/8Kq2/640.webp/v7` | **hit** |
+
+If the signature *were* in the key, 1,000 followers would mean 1,000 different keys, 1,000 misses and 1,000 copies. That's the "hit ratio collapses" row above. Like a cinema: everyone's ticket is different and is checked at the door, but they all watch **the same screen**.
+
+**Public vs private, side by side:**
+
+| | Public account | Private account |
+|---|---|---|
+| Who decides | feed API: "is the post visible?" | feed API: "is **this viewer** an approved follower?" |
+| URL | still signed, same format | signed, short expiry (hours) |
+| Cache key | the canonical path, without the signature | the **same**: one cached copy per size, shared by all allowed viewers |
+| Cache lifetime (`max-age`) | 1 year (pixels never change) | 1 year; access is limited by the **signature**, not by the cache |
+
+**Why sign public photos too?** A public account can **go private at any moment**. If its photos were on plain, permanent URLs, those links would keep working forever after the switch. Signing every URL means going private takes effect within one signature TTL. **[Guide]**
 
 ### Bytes per view and price per GB [Algoroq]
 
